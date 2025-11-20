@@ -78,6 +78,7 @@ register_tortoise(
         "app.models.tags",
         "app.models.resources",
         "app.models.resources_tags",
+        "app.models.llm_cache",
 
     ]},
     generate_schemas=False,

@@ -6,8 +6,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
 from app.models.project import Project
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
+from app.core.llm_cache_utils import generate_cache_hash_key, get_cached_result, save_to_cache
 try:
     from app.ingestion.aws.llm_s3_integration import run_llm_analysis_s3
     from app.ingestion.aws.llm_ec2_vpc_integration import run_llm_analysis as run_llm_analysis_ec2_vpc
@@ -134,29 +135,68 @@ async def llm_aws(
 
 
 # ---------------------------------------------------------
-# AZURE Endpoint
+# AZURE Endpoint (WITH CACHING)
 # ---------------------------------------------------------
 @router.post("/azure/{project_id}", response_model=LLMResponse, status_code=200)
 async def llm_azure(
-    project_id: str, 
+    project_id: str,
     payload: LLMRequest,
 ):
     schema = await _resolve_schema_name(project_id, payload.schema_name)
 
-    result = run_llm_analysis(
-        payload.resource_type,
-        schema,
-        payload.start_date,
-        payload.end_date,
-        payload.resource_id,
+    # Convert datetime to date for hashing
+    start_dt = payload.start_date.date() if payload.start_date else None
+    end_dt = payload.end_date.date() if payload.end_date else None
+
+    # Generate hash key for caching
+    hash_key = generate_cache_hash_key(
+        cloud_platform="azure",
+        schema_name=schema,
+        resource_type=payload.resource_type,
+        start_date=start_dt,
+        end_date=end_dt,
+        resource_id=payload.resource_id
     )
 
-    # Convert single dict result to list for consistent frontend handling
-    if result is not None:
-        result_list = [result] if isinstance(result, dict) else result
-        print(f'Final response__list: {result_list}')
+    print(f"🔑 Generated cache hash_key: {hash_key[:16]}...")
+
+    # Check cache first
+    cached_result = await get_cached_result(hash_key)
+
+    if cached_result:
+        # Return cached result
+        print(f"📦 Returning cached result for Azure {payload.resource_type}")
+        result_list = cached_result
     else:
-        result_list = []
+        # Cache miss - call LLM
+        print(f"🔄 Cache miss - calling LLM for Azure {payload.resource_type}")
+        result = run_llm_analysis(
+            payload.resource_type,
+            schema,
+            payload.start_date,
+            payload.end_date,
+            payload.resource_id,
+        )
+
+        # Convert single dict result to list for consistent frontend handling
+        if result is not None:
+            result_list = [result] if isinstance(result, dict) else result
+            print(f'Final response__list: {len(result_list)} resources processed')
+        else:
+            result_list = []
+
+        # Save to cache (async)
+        if result_list:
+            await save_to_cache(
+                hash_key=hash_key,
+                cloud_platform="azure",
+                schema_name=schema,
+                resource_type=payload.resource_type,
+                start_date=start_dt,
+                end_date=end_dt,
+                resource_id=payload.resource_id,
+                output_json=result_list
+            )
 
     return LLMResponse(
         status="success",
