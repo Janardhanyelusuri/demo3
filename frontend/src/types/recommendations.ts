@@ -79,10 +79,30 @@ export interface CloudResourceMap {
     backendKey: string;  // e.g., "vm"
 }
 
+// Date Range Preset Options
+export type DateRangePreset = 'today' | 'yesterday' | 'last_week' | 'last_month' | 'last_6_months' | 'last_year' | 'custom';
+
+export interface DateRangeOption {
+    value: DateRangePreset;
+    label: string;
+}
+
+export const DATE_RANGE_OPTIONS: DateRangeOption[] = [
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_week', label: 'Last Week' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'last_6_months', label: 'Last 6 Months' },
+    { value: 'last_year', label: 'Last Year' },
+    { value: 'custom', label: 'Custom Range' },
+];
+
 // Filter State Interface
 export interface RecommendationFilters {
     resourceType: string; // The selected display name (e.g., "VM")
     resourceId?: string;
+    resourceIdEnabled: boolean; // New: toggle for resource ID filter
+    dateRangePreset: DateRangePreset; // New: selected preset
     startDate?: Date;
     endDate?: Date;
 }

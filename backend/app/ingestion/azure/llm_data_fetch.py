@@ -526,27 +526,168 @@ def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_
         return None
 
 
-def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None,resource_id=None):
+@connection
+def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+    """
+    NEW FUNCTION: Fetch ALL distinct VMs and process each through LLM individually.
+
+    Returns:
+        List of recommendation dictionaries, one per VM resource
+    """
+    if end_date is None:
+        end_dt = datetime.utcnow().date()
+    else:
+        end_dt = pd.to_datetime(end_date).date()
+
+    if start_date is None:
+        start_dt = end_dt - timedelta(days=30)
+    else:
+        start_dt = pd.to_datetime(start_date).date()
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    print(f"🔎 Running VM LLM for ALL distinct VMs in {schema_name} from {start_str} to {end_str}")
+
+    # Fetch data for ALL VMs (no resource_id filter)
+    df = fetch_vm_utilization_data(conn, schema_name, start_str, end_str, resource_id=None)
+
+    if df is None or df.empty:
+        print("⚠️ No VM data found for the requested date range.")
+        return []
+
+    # Annotate with date info
+    df["start_date"] = start_str
+    df["end_date"] = end_str
+    df["duration_days"] = (pd.to_datetime(end_str) - pd.to_datetime(start_str)).days or 1
+
+    recommendations = []
+    total_resources = len(df)
+    print(f"📊 Found {total_resources} distinct VM resources to analyze")
+
+    # Process each row (resource) individually through LLM
+    for idx, row in df.iterrows():
+        resource_id = row.get('resource_id', 'Unknown')
+        print(f"  [{idx + 1}/{total_resources}] Processing VM: {resource_id}")
+
+        try:
+            resource_dict = row.to_dict()
+            recommendation = get_compute_recommendation_single(resource_dict)
+
+            if recommendation:
+                recommendations.append(recommendation)
+                print(f"    ✅ LLM analysis complete for {resource_id}")
+            else:
+                print(f"    ⚠️ No recommendation generated for {resource_id}")
+        except Exception as e:
+            print(f"    ❌ Error processing {resource_id}: {e}")
+            continue
+
+    print(f"✅ Completed processing {len(recommendations)}/{total_resources} VMs successfully")
+    return recommendations
+
+
+@connection
+def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+    """
+    NEW FUNCTION: Fetch ALL distinct Storage Accounts and process each through LLM individually.
+
+    Returns:
+        List of recommendation dictionaries, one per Storage Account
+    """
+    if end_date is None:
+        end_dt = datetime.utcnow().date()
+    else:
+        end_dt = pd.to_datetime(end_date).date()
+
+    if start_date is None:
+        start_dt = end_dt - timedelta(days=7)
+    else:
+        start_dt = pd.to_datetime(start_date).date()
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    print(f"🔎 Running Storage LLM for ALL distinct Storage Accounts in {schema_name} from {start_str} to {end_str}")
+
+    # Fetch data for ALL storage accounts (no resource_id filter)
+    df = fetch_storage_account_utilization_data(conn, schema_name, start_str, end_str, resource_id=None)
+
+    if df is None or df.empty:
+        print("⚠️ No storage account data found for the requested date range.")
+        return []
+
+    # Annotate with date info
+    df["start_date"] = start_str
+    df["end_date"] = end_str
+    df["duration_days"] = (pd.to_datetime(end_str) - pd.to_datetime(start_str)).days or 1
+
+    recommendations = []
+    total_resources = len(df)
+    print(f"📊 Found {total_resources} distinct Storage Account resources to analyze")
+
+    # Process each row (resource) individually through LLM
+    for idx, row in df.iterrows():
+        resource_id = row.get('resource_id', 'Unknown')
+        print(f"  [{idx + 1}/{total_resources}] Processing Storage Account: {resource_id}")
+
+        try:
+            resource_dict = row.to_dict()
+            recommendation = get_storage_recommendation_single(resource_dict)
+
+            if recommendation:
+                recommendations.append(recommendation)
+                print(f"    ✅ LLM analysis complete for {resource_id}")
+            else:
+                print(f"    ⚠️ No recommendation generated for {resource_id}")
+        except Exception as e:
+            print(f"    ❌ Error processing {resource_id}: {e}")
+            continue
+
+    print(f"✅ Completed processing {len(recommendations)}/{total_resources} Storage Accounts successfully")
+    return recommendations
+
+
+def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None, resource_id=None):
     """
     Unified entry point for running LLM cost optimization analyses.
-    This version implements a strict guard: it will raise ValueError if the provided
-    resource_id does not look like the requested resource_type.
+
+    NEW BEHAVIOR:
+    - If resource_id is provided: Returns a single recommendation dict for that resource
+    - If resource_id is None: Fetches ALL distinct resources and returns a list of recommendations
+
+    Returns:
+        - Single dict if resource_id is provided
+        - List of dicts if resource_id is None (multiple resources analyzed)
     """
     # Input normalization
     rtype = resource_type.strip().lower()
     start_date = start_date or (datetime.utcnow().date().replace(day=1).strftime("%Y-%m-%d"))
     end_date = end_date or datetime.utcnow().date().strftime("%Y-%m-%d")
 
-    # STRICT GUARD: ensure resource_id matches resource_type
-
     if rtype in ["vm", "virtualmachine", "virtual_machine"]:
-        final_response = run_llm_vm(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
-        print(f'Final response : {final_response}')
-        return final_response
+        # If resource_id is provided, return single result
+        if resource_id:
+            final_response = run_llm_vm(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
+            print(f'Final response (single VM): {final_response}')
+            return final_response
+        else:
+            # Fetch all distinct VMs and process each
+            final_response = run_llm_vm_all_resources(schema_name, start_date=start_date, end_date=end_date)
+            print(f'Final response (all VMs): {len(final_response)} resources processed')
+            return final_response
+
     elif rtype in ["storage", "storageaccount", "storage_account"]:
-         final_response=run_llm_storage(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
-         print(f'Final response : {final_response}')
-         return final_response
+        # If resource_id is provided, return single result
+        if resource_id:
+            final_response = run_llm_storage(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
+            print(f'Final response (single Storage): {final_response}')
+            return final_response
+        else:
+            # Fetch all distinct storage accounts and process each
+            final_response = run_llm_storage_all_resources(schema_name, start_date=start_date, end_date=end_date)
+            print(f'Final response (all Storage): {len(final_response)} resources processed')
+            return final_response
     else:
         raise ValueError(f"Unsupported resource_type: {resource_type}")
 
