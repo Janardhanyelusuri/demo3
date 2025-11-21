@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from datetime import date, datetime
+from datetime import date
 from typing import Optional, List, Dict, Any
 from app.models.llm_cache import LLMCache
 
@@ -103,9 +103,8 @@ async def save_to_cache(
         existing_entry = await LLMCache.get_or_none(hash_key=hash_key)
 
         if existing_entry:
-            # Update existing entry
+            # Update existing entry (updated_at handled automatically by auto_now=True)
             existing_entry.output_json = output_json
-            existing_entry.updated_at = datetime.utcnow()
             await existing_entry.save()
             print(f"🔄 Cache UPDATED for hash_key: {hash_key[:8]}...")
         else:
