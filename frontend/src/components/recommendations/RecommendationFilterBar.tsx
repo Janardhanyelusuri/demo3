@@ -102,14 +102,10 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
     };
 
     return (
-        <div className="flex flex-col space-y-4 p-6 mb-8 bg-white border rounded-lg shadow-sm">
-
-            {/* First Row: Resource Type */}
-            <div className="flex items-center space-x-4">
-                <div className="w-full">
-                    <Label htmlFor="resource-type" className="text-sm font-medium mb-2 block">
-                        Resource Type *
-                    </Label>
+        <div className="flex items-center justify-between px-6 py-3 bg-[#F9FEFF] rounded-xl shadow border border-[#233E7D]/20 mb-6">
+            <div className="flex items-center space-x-4 flex-1 overflow-x-auto">
+                {/* Resource Type */}
+                <div className="min-w-[180px]">
                     <Select
                         value={filters.resourceType}
                         onValueChange={(value) => setFilters(prev => ({
@@ -118,8 +114,8 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                             resourceId: undefined
                         }))}
                     >
-                        <SelectTrigger id="resource-type" className="w-full">
-                            <SelectValue placeholder="Select Resource Type" />
+                        <SelectTrigger className="h-9 bg-[#EAF1FB] text-[#233E7D] text-xs font-semibold border-[#B6C6E3] focus:ring-2 focus:ring-[#233E7D]/40 hover:bg-[#D6E4F7]">
+                            <SelectValue placeholder="Resource Type" />
                         </SelectTrigger>
                         <SelectContent>
                             {resourceOptions.map((r) => (
@@ -130,37 +126,34 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                         </SelectContent>
                     </Select>
                 </div>
-            </div>
 
-            {/* Second Row: Resource ID Toggle and Dropdown */}
-            <div className="flex items-start space-x-4">
-                <div className="flex items-center space-x-2 pt-8">
+                {/* Resource ID Toggle */}
+                <div className="flex items-center space-x-2 px-3 py-1.5 bg-white/50 rounded-lg border border-[#233E7D]/10">
                     <Switch
                         id="resource-id-toggle"
                         checked={filters.resourceIdEnabled}
                         onCheckedChange={handleResourceIdToggle}
+                        className="data-[state=checked]:bg-[#233E7D]"
                     />
-                    <Label htmlFor="resource-id-toggle" className="text-sm font-medium cursor-pointer">
-                        Filter by specific resource
+                    <Label htmlFor="resource-id-toggle" className="text-xs font-medium text-[#233E7D] cursor-pointer whitespace-nowrap">
+                        Specific Resource
                     </Label>
                 </div>
 
+                {/* Resource ID Dropdown - Only show when enabled */}
                 {filters.resourceIdEnabled && (
-                    <div className="flex-1">
-                        <Label htmlFor="resource-id" className="text-sm font-medium mb-2 block">
-                            Resource ID
-                        </Label>
+                    <div className="min-w-[220px]">
                         <Select
                             value={filters.resourceId || ""}
                             onValueChange={(value) => setFilters(prev => ({ ...prev, resourceId: value }))}
                             disabled={loadingResourceIds || !filters.resourceType}
                         >
-                            <SelectTrigger id="resource-id" className="w-full">
-                                <SelectValue placeholder={loadingResourceIds ? "Loading resources..." : "Select Resource ID"} />
+                            <SelectTrigger className="h-9 bg-[#EAF1FB] text-[#233E7D] text-xs font-semibold border-[#B6C6E3] focus:ring-2 focus:ring-[#233E7D]/40 hover:bg-[#D6E4F7]">
+                                <SelectValue placeholder={loadingResourceIds ? "Loading..." : "Select Resource"} />
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
                                 {resourceIds.length === 0 ? (
-                                    <div className="p-2 text-sm text-gray-500">No resources found</div>
+                                    <div className="p-2 text-xs text-gray-500">No resources found</div>
                                 ) : (
                                     resourceIds.map((resource) => (
                                         <SelectItem
@@ -169,8 +162,8 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                                             title={resource.resource_id}
                                         >
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{resource.resource_name}</span>
-                                                <span className="text-xs text-gray-500 truncate max-w-md">
+                                                <span className="font-medium text-xs">{resource.resource_name}</span>
+                                                <span className="text-[10px] text-gray-500 truncate max-w-md">
                                                     {resource.resource_id}
                                                 </span>
                                             </div>
@@ -181,21 +174,15 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                         </Select>
                     </div>
                 )}
-            </div>
 
-            {/* Third Row: Date Range */}
-            <div className="flex flex-col space-y-2">
-                <Label htmlFor="date-range" className="text-sm font-medium">
-                    Date Range *
-                </Label>
-                <div className="flex items-center space-x-4 flex-wrap gap-2">
-                    {/* Date Range Preset Dropdown */}
+                {/* Date Range Preset */}
+                <div className="min-w-[160px]">
                     <Select
                         value={filters.dateRangePreset}
                         onValueChange={(value) => handleDateRangePresetChange(value as DateRangePreset)}
                     >
-                        <SelectTrigger id="date-range" className="w-[200px]">
-                            <SelectValue placeholder="Select Date Range" />
+                        <SelectTrigger className="h-9 bg-[#EAF1FB] text-[#233E7D] text-xs font-semibold border-[#B6C6E3] focus:ring-2 focus:ring-[#233E7D]/40 hover:bg-[#D6E4F7]">
+                            <SelectValue placeholder="Date Range" />
                         </SelectTrigger>
                         <SelectContent>
                             {DATE_RANGE_OPTIONS.map((option) => (
@@ -205,85 +192,80 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-
-                    {/* Custom Date Pickers - Only show when Custom is selected */}
-                    {filters.dateRangePreset === 'custom' && (
-                        <>
-                            {/* Start Date Picker */}
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                            "w-[200px] justify-start text-left font-normal",
-                                            !filters.startDate && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {filters.startDate ? format(filters.startDate, "PPP") : <span>Start Date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={filters.startDate}
-                                        onSelect={(date) => setFilters(prev => ({ ...prev, startDate: date }))}
-                                        initialFocus
-                                        disabled={(date) => date > today}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-
-                            {/* End Date Picker */}
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                            "w-[200px] justify-start text-left font-normal",
-                                            !filters.endDate && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {filters.endDate ? format(filters.endDate, "PPP") : <span>End Date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={filters.endDate}
-                                        onSelect={(date) => setFilters(prev => ({ ...prev, endDate: date }))}
-                                        initialFocus
-                                        disabled={(date) =>
-                                           date > today ||
-                                           (filters.startDate ? date < filters.startDate : false)
-                                        }
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </>
-                    )}
-
-                    {/* Display selected date range for non-custom presets */}
-                    {filters.dateRangePreset !== 'custom' && filters.startDate && filters.endDate && (
-                        <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-md">
-                            {format(filters.startDate, "MMM d, yyyy")} - {format(filters.endDate, "MMM d, yyyy")}
-                        </div>
-                    )}
                 </div>
+
+                {/* Custom Date Pickers - Only show when Custom is selected */}
+                {filters.dateRangePreset === 'custom' && (
+                    <>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "h-9 w-[140px] justify-start text-xs bg-[#EAF1FB] text-[#233E7D] font-semibold border-[#B6C6E3] hover:bg-[#D6E4F7]",
+                                        !filters.startDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                                    {filters.startDate ? format(filters.startDate, "MMM d, yy") : "Start Date"}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={filters.startDate}
+                                    onSelect={(date) => setFilters(prev => ({ ...prev, startDate: date }))}
+                                    initialFocus
+                                    disabled={(date) => date > today}
+                                />
+                            </PopoverContent>
+                        </Popover>
+
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "h-9 w-[140px] justify-start text-xs bg-[#EAF1FB] text-[#233E7D] font-semibold border-[#B6C6E3] hover:bg-[#D6E4F7]",
+                                        !filters.endDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                                    {filters.endDate ? format(filters.endDate, "MMM d, yy") : "End Date"}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={filters.endDate}
+                                    onSelect={(date) => setFilters(prev => ({ ...prev, endDate: date }))}
+                                    initialFocus
+                                    disabled={(date) =>
+                                       date > today ||
+                                       (filters.startDate ? date < filters.startDate : false)
+                                    }
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </>
+                )}
+
+                {/* Display selected date range for non-custom presets */}
+                {filters.dateRangePreset !== 'custom' && filters.startDate && filters.endDate && (
+                    <div className="text-xs text-[#233E7D] bg-white/70 px-3 py-1.5 rounded-md border border-[#233E7D]/10 whitespace-nowrap">
+                        {format(filters.startDate, "MMM d")} - {format(filters.endDate, "MMM d, yyyy")}
+                    </div>
+                )}
             </div>
 
-            {/* Fourth Row: Run Analysis Button */}
-            <div className="flex items-center justify-end pt-2">
-                <Button
-                    onClick={onRunAnalysis}
-                    disabled={isLoading || !filters.resourceType || !filters.startDate || !filters.endDate}
-                    className="px-8"
-                    size="lg"
-                >
-                    {isLoading ? 'Analyzing...' : 'Run Analysis'}
-                </Button>
-            </div>
+            {/* Run Analysis Button */}
+            <Button
+                onClick={onRunAnalysis}
+                disabled={isLoading || !filters.resourceType || !filters.startDate || !filters.endDate}
+                className="ml-4 h-9 px-6 text-xs font-bold bg-[#233E7D] hover:bg-[#1a2d5c] text-white shadow-sm whitespace-nowrap"
+            >
+                {isLoading ? 'Analyzing...' : 'Run Analysis'}
+            </Button>
         </div>
     );
 };

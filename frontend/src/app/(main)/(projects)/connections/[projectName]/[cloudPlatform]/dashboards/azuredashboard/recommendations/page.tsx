@@ -85,8 +85,8 @@ const AzureRecommendationsPage: React.FC = () => {
   const currentRecommendation = recommendations[currentIndex];
 
   return (
-    <div className="p-8">
-      <h1 className="text-cp-title-2xl font-cp-semibold mb-6 text-cp-blue">
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4 text-[#233E7D]">
         Azure Cost Optimization Recommendations
       </h1>
 
@@ -103,66 +103,66 @@ const AzureRecommendationsPage: React.FC = () => {
 
       {/* RESULTS DISPLAY */}
       {isLoading ? (
-        <div className="p-8 text-center text-lg">
+        <div className="p-6 text-center">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/2 mx-auto mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/3 mx-auto"></div>
+            <div className="h-6 bg-gray-200 rounded w-1/2 mx-auto mb-3"></div>
+            <div className="h-3 bg-gray-200 rounded w-1/3 mx-auto"></div>
           </div>
-          <p className="mt-4">Analyzing {filters.resourceType} data...</p>
+          <p className="mt-3 text-sm text-gray-600">Analyzing {filters.resourceType} data...</p>
         </div>
       ) : error ? (
-        <div className="p-8 text-center text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-lg font-semibold mb-2">Error</p>
-          <p>{error}</p>
+        <div className="p-5 text-center text-red-600 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-base font-semibold mb-1">Error</p>
+          <p className="text-sm">{error}</p>
         </div>
       ) : recommendations.length === 0 ? (
-        <div className="p-8 text-center bg-gray-50 border rounded-lg shadow-sm">
-          <p className="text-cp-body text-gray-700">
+        <div className="p-6 text-center bg-gray-50 border rounded-lg shadow-sm">
+          <p className="text-sm text-gray-700">
             No optimization opportunities found for the selected filters.
           </p>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 mt-1">
             Try adjusting your date range or resource selection.
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Header with resource count and navigation */}
-          <div className="flex items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
-            <div>
-              <p className="text-lg font-semibold text-gray-900">
-                Found <span className="text-blue-600">{recommendations.length}</span> resource
+        <div className="space-y-4">
+          {/* Header with resource count and navigation - More Compact */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-[#F9FEFF] border border-[#233E7D]/20 rounded-lg shadow-sm">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                Found <span className="text-[#233E7D]">{recommendations.length}</span> resource
                 {recommendations.length !== 1 ? 's' : ''} with recommendations
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600 mt-0.5 truncate">
                 {filters.resourceIdEnabled && filters.resourceId
-                  ? `Showing analysis for: ${filters.resourceId.split('/').pop()}`
-                  : `Showing all ${filters.resourceType} resources`}
+                  ? `Showing: ${filters.resourceId.split('/').pop()}`
+                  : `All ${filters.resourceType} resources`}
               </p>
             </div>
 
             {/* Navigation Controls (only show if multiple recommendations) */}
             {recommendations.length > 1 && (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">
-                  Resource {currentIndex + 1} of {recommendations.length}
+              <div className="flex items-center space-x-3 ml-4">
+                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                  {currentIndex + 1} / {recommendations.length}
                 </span>
-                <div className="flex space-x-2">
+                <div className="flex space-x-1.5">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handlePrevious}
                     disabled={currentIndex === 0}
+                    className="h-8 w-8 p-0"
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleNext}
                     disabled={currentIndex === recommendations.length - 1}
+                    className="h-8 w-8 p-0"
                   >
-                    Next
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -179,15 +179,15 @@ const AzureRecommendationsPage: React.FC = () => {
 
           {/* Pagination Dots (only show if multiple recommendations) */}
           {recommendations.length > 1 && (
-            <div className="flex justify-center space-x-2 py-4">
+            <div className="flex justify-center space-x-1.5 py-3">
               {recommendations.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentIndex(index)}
-                  className={`h-2 rounded-full transition-all duration-200 ${
+                  className={`h-1.5 rounded-full transition-all duration-200 ${
                     index === currentIndex
-                      ? 'w-8 bg-blue-600'
-                      : 'w-2 bg-gray-300 hover:bg-gray-400'
+                      ? 'w-6 bg-[#233E7D]'
+                      : 'w-1.5 bg-gray-300 hover:bg-gray-400'
                   }`}
                   aria-label={`Go to resource ${index + 1}`}
                 />
