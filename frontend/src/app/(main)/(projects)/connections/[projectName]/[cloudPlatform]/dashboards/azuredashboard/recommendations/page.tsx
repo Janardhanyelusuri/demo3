@@ -133,10 +133,23 @@ const AzureRecommendationsPage: React.FC = () => {
       abortControllerRef.current = null;
     }
 
-    // Cancel any ongoing backend task
+    // Cancel any ongoing backend task (try both specific task and all active tasks)
     if (currentTaskIdRef.current) {
       await cancelBackendTask(currentTaskIdRef.current);
       currentTaskIdRef.current = null;
+    } else {
+      // If we don't have a task_id (aborted too quickly), cancel all active tasks
+      try {
+        const tasksResponse = await fetch('http://localhost:8000/llm/tasks');
+        const tasksData = await tasksResponse.json();
+        console.log(`Found ${tasksData.count} active tasks, cancelling all...`);
+
+        for (const task of tasksData.tasks) {
+          await cancelBackendTask(task.id);
+        }
+      } catch (error) {
+        console.error('Error cancelling all tasks:', error);
+      }
     }
 
     // Reset filters to initial state
