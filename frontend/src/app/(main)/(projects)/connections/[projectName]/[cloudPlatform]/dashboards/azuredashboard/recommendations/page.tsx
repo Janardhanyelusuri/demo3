@@ -54,6 +54,8 @@ const AzureRecommendationsPage: React.FC = () => {
   };
 
   const handleFetch = async () => {
+    console.log('🚀 [TASK-CANCEL-v2.0] NEW CODE LOADED - Task cancellation active');
+
     // Validation ensures analysis only runs if a resource type and dates are selected
     if (!filters.resourceType) {
         setError("Please select a Resource Type to analyze.");
@@ -117,6 +119,8 @@ const AzureRecommendationsPage: React.FC = () => {
 
   // Reset all filters and clear results
   const handleReset = async () => {
+    console.log('🔄 [TASK-CANCEL-v2.0] Reset clicked - Cancelling tasks');
+
     // Cancel any ongoing HTTP request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
