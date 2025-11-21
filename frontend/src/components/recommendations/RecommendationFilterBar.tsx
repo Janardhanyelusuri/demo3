@@ -1,6 +1,6 @@
 // src/components/recommendations/RecommendationFilterBar.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RecommendationFilters, CloudResourceMap, DATE_RANGE_OPTIONS, DateRangePreset } from "@/types/recommendations";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -45,96 +45,87 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
 }) => {
     const [resourceIds, setResourceIds] = useState<ResourceIdOption[]>([]);
     const [loadingResourceIds, setLoadingResourceIds] = useState(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // Define the date boundaries to prevent future date selection
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Fetch resource IDs when resource type changes
+    // Fetch resource IDs when resource type changes (with debounce)
     useEffect(() => {
-        console.log('🔄 useEffect triggered:', {
-            resourceType: filters.resourceType,
-            resourceIdEnabled: filters.resourceIdEnabled,
-            projectId,
-            cloudPlatform
-        });
-
         if (!filters.resourceType || !filters.resourceIdEnabled) {
-            console.log('❌ Not fetching - resourceType or toggle disabled');
             setResourceIds([]);
             setLoadingResourceIds(false);
             return;
         }
 
-        // Create AbortController for this request
-        const abortController = new AbortController();
-        let isMounted = true;
+        // Debounce: wait 300ms before fetching to prevent rapid changes
+        const debounceTimer = setTimeout(() => {
+            // Cancel any previous request
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
 
-        const fetchResourceIds = async () => {
-            setLoadingResourceIds(true);
-            setResourceIds([]); // Clear existing data before fetching
+            // Create new AbortController for this request
+            abortControllerRef.current = new AbortController();
+            let isMounted = true;
 
-            try {
-                const resourceMap = resourceOptions.find(r => r.displayName === filters.resourceType);
-                if (!resourceMap) {
-                    console.log('❌ No resource map found for:', filters.resourceType);
+            const fetchResourceIds = async () => {
+                setLoadingResourceIds(true);
+                setResourceIds([]); // Clear existing data before fetching
+
+                try {
+                    const resourceMap = resourceOptions.find(r => r.displayName === filters.resourceType);
+                    if (!resourceMap) {
+                        if (isMounted) {
+                            setLoadingResourceIds(false);
+                        }
+                        return;
+                    }
+
+                    const url = `${BACKEND}/llm/${cloudPlatform}/${projectId}/resources/${resourceMap.backendKey}`;
+
+                    const response = await axiosInstance.get(url, {
+                        signal: abortControllerRef.current!.signal
+                    });
+
+                    if (isMounted && response.data.status === 'success') {
+                        const ids = response.data.resource_ids || [];
+                        setResourceIds(ids);
+                    }
+                } catch (error: any) {
+                    // Clear resourceIds on error to ensure clean state
+                    if (isMounted) {
+                        setResourceIds([]);
+                    }
+
+                    // Don't log error if request was cancelled
+                    if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
+                        console.error('Error fetching resource IDs:', error);
+                    }
+                } finally {
                     if (isMounted) {
                         setLoadingResourceIds(false);
+                        abortControllerRef.current = null;
                     }
-                    return;
                 }
+            };
 
-                const url = `${BACKEND}/llm/${cloudPlatform}/${projectId}/resources/${resourceMap.backendKey}`;
-                console.log('🚀 Fetching resource IDs from:', url);
-                console.log('📍 Resource map:', resourceMap);
+            fetchResourceIds();
 
-                const response = await axiosInstance.get(url, {
-                    signal: abortController.signal
-                });
+            // Cleanup function
+            return () => {
+                isMounted = false;
+            };
+        }, 300);
 
-                console.log('✅ Resource IDs response:', response.data);
-
-                if (isMounted && response.data.status === 'success') {
-                    const ids = response.data.resource_ids || [];
-                    setResourceIds(ids);
-                    console.log('✅ Set resource IDs:', ids.length, 'items');
-                    if (ids.length > 0) {
-                        console.log('📋 First resource:', ids[0]);
-                    }
-                } else if (isMounted) {
-                    console.log('⚠️ Response status not success or component unmounted');
-                }
-            } catch (error: any) {
-                console.log('❌ Error caught:', {
-                    name: error.name,
-                    message: error.message,
-                    isCanceled: error.name === 'CanceledError' || error.name === 'AbortError'
-                });
-
-                // Always clear resourceIds on error to ensure clean state
-                if (isMounted) {
-                    setResourceIds([]);
-                }
-
-                // Don't log full error if request was cancelled
-                if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
-                    console.error('❌ Error fetching resource IDs:', error);
-                }
-            } finally {
-                if (isMounted) {
-                    setLoadingResourceIds(false);
-                    console.log('✅ Fetch complete, loading set to false');
-                }
-            }
-        };
-
-        fetchResourceIds();
-
-        // Cleanup: abort the request if component unmounts or dependencies change
+        // Cleanup: clear debounce timer and abort request
         return () => {
-            console.log('🧹 Cleanup: aborting request');
-            isMounted = false;
-            abortController.abort();
+            clearTimeout(debounceTimer);
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+            }
         };
     }, [filters.resourceType, filters.resourceIdEnabled, projectId, cloudPlatform]);
 
