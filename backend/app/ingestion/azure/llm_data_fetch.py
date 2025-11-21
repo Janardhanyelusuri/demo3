@@ -81,7 +81,8 @@ def fetch_vm_utilization_data(conn, schema_name, start_date, end_date, resource_
         params["resource_id"] = resource_id
     else:
         # Exclude Databricks resources when fetching all VMs
-        resource_dim_filter_sql = "WHERE LOWER(resource_id) NOT LIKE '%databricks%'"
+        # Note: %% escapes % in parameterized queries
+        resource_dim_filter_sql = "WHERE LOWER(resource_id) NOT LIKE '%%databricks%%'"
 
     # Define the list of essential metrics
     essential_metrics = (
@@ -333,7 +334,8 @@ def fetch_storage_account_utilization_data(
         resource_filter_dim = "WHERE LOWER(resource_id) = LOWER(%(resource_id)s)"
     else:
         # Exclude Databricks resources when fetching all Storage Accounts
-        resource_filter_dim = "WHERE LOWER(resource_id) NOT LIKE '%databricks%'"
+        # Note: %% escapes % in parameterized queries
+        resource_filter_dim = "WHERE LOWER(resource_id) NOT LIKE '%%databricks%%'"
 
 
     query = f"""
