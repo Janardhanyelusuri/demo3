@@ -71,13 +71,14 @@ const getBackendKey = (cloud: string, displayName: string): string | undefined =
 /**
  * Public function: Fetches recommendations based on user-selected filters.
  * @param signal - Optional AbortSignal to cancel the request
+ * @returns Object containing recommendations array and optional task_id
  */
 export const fetchRecommendationsWithFilters = async (
     projectId: string,
     cloudPlatform: 'azure' | 'aws' | 'gcp',
     filters: RecommendationFilters,
     signal?: AbortSignal
-): Promise<NormalizedRecommendation[]> => {
+): Promise<{ recommendations: NormalizedRecommendation[], taskId?: string }> => {
     
     // 1. Get the internal backend key from the selected display name
     const backendKey = getBackendKey(cloudPlatform, filters.resourceType);
@@ -102,17 +103,26 @@ export const fetchRecommendationsWithFilters = async (
             headers: { "Content-Type": "application/json" },
             signal: signal // Pass the abort signal to axios
         });
-        
+
+        // Extract task_id from response
+        const taskId = response.data.task_id;
+
         // 3. Parse the JSON string from the 'recommendations' field
-        const rawJsonString = response.data.recommendations; 
-        
+        const rawJsonString = response.data.recommendations;
+
         if (rawJsonString) {
-             const rawData = JSON.parse(rawJsonString) as RawRecommendation[]; 
-             // 4. Normalize and return
-             return normalizeRecommendations(rawData);
+             const rawData = JSON.parse(rawJsonString) as RawRecommendation[];
+             // 4. Normalize and return with task_id
+             return {
+                 recommendations: normalizeRecommendations(rawData),
+                 taskId: taskId
+             };
         }
 
-        return [];
+        return {
+            recommendations: [],
+            taskId: taskId
+        };
 
     } catch (err: any) {
         // Handle request cancellation gracefully

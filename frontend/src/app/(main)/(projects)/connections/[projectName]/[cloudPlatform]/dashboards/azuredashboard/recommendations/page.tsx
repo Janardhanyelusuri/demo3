@@ -26,6 +26,8 @@ const AzureRecommendationsPage: React.FC = () => {
 
   // AbortController ref to cancel ongoing requests
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Task ID ref to cancel backend processing
+  const currentTaskIdRef = useRef<string | null>(null);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -38,6 +40,18 @@ const AzureRecommendationsPage: React.FC = () => {
     startDate: undefined,
     endDate: undefined,
   });
+
+  // Helper function to cancel backend task
+  const cancelBackendTask = async (taskId: string) => {
+    try {
+      await fetch(`http://localhost:8000/llm/tasks/${taskId}/cancel`, {
+        method: 'POST'
+      });
+      console.log(`✅ Cancelled backend task: ${taskId}`);
+    } catch (error) {
+      console.error('Error cancelling backend task:', error);
+    }
+  };
 
   const handleFetch = async () => {
     // Validation ensures analysis only runs if a resource type and dates are selected
@@ -53,9 +67,13 @@ const AzureRecommendationsPage: React.FC = () => {
         return;
     }
 
-    // Cancel any ongoing request before starting a new one
+    // Cancel any ongoing request and backend task before starting a new one
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+    }
+    if (currentTaskIdRef.current) {
+      await cancelBackendTask(currentTaskIdRef.current);
+      currentTaskIdRef.current = null;
     }
 
     // Create a new AbortController for this request
@@ -66,13 +84,19 @@ const AzureRecommendationsPage: React.FC = () => {
     setCurrentIndex(0); // Reset to first recommendation
 
     try {
-      const normalizedData = await fetchRecommendationsWithFilters(
+      const result = await fetchRecommendationsWithFilters(
         projectId,
         cloudPlatform,
         filters,
         abortControllerRef.current.signal
       );
-      setRecommendations(normalizedData);
+      setRecommendations(result.recommendations);
+
+      // Store task_id for potential cancellation
+      if (result.taskId) {
+        currentTaskIdRef.current = result.taskId;
+        console.log(`📋 Started task: ${result.taskId}`);
+      }
     } catch (err) {
       // Robust error handling
       if (err instanceof Error) {
@@ -86,15 +110,23 @@ const AzureRecommendationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
+      // Clear task_id after completion
+      currentTaskIdRef.current = null;
     }
   };
 
   // Reset all filters and clear results
-  const handleReset = () => {
-    // Cancel any ongoing request
+  const handleReset = async () => {
+    // Cancel any ongoing HTTP request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+
+    // Cancel any ongoing backend task
+    if (currentTaskIdRef.current) {
+      await cancelBackendTask(currentTaskIdRef.current);
+      currentTaskIdRef.current = null;
     }
 
     // Reset filters to initial state
