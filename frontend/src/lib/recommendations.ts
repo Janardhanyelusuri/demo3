@@ -104,8 +104,8 @@ export const fetchRecommendationsWithFilters = async (
             signal: signal // Pass the abort signal to axios
         });
 
-        // Extract task_id from response
-        const taskId = response.data.task_id;
+        // Extract task_id from response header (available immediately) or body (fallback)
+        const taskId = response.headers['x-task-id'] || response.data.task_id;
 
         // 3. Parse the JSON string from the 'recommendations' field
         const rawJsonString = response.data.recommendations;
