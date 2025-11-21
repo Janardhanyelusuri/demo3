@@ -73,6 +73,26 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
+  // Reset all filters and clear results
+  const handleReset = () => {
+    // Reset filters to initial state
+    setFilters({
+      resourceType: resourceOptions[0]?.displayName || '',
+      resourceId: undefined,
+      resourceIdEnabled: false,
+      dateRangePreset: 'last_month',
+      startDate: undefined,
+      endDate: undefined,
+    });
+
+    // Clear all state
+    setRecommendations([]);
+    setCurrentIndex(0);
+    setError(null);
+    setIsLoading(false);
+    setIsTransitioning(false);
+  };
+
   // Navigation functions for carousel with smooth transitions
   const handlePrevious = () => {
     if (isTransitioning) return;
@@ -114,6 +134,7 @@ const AzureRecommendationsPage: React.FC = () => {
         resourceOptions={resourceOptions}
         isLoading={isLoading}
         onRunAnalysis={handleFetch}
+        onReset={handleReset}
         projectId={projectId}
         cloudPlatform={cloudPlatform}
       />

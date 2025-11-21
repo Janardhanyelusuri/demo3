@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { RecommendationFilters, CloudResourceMap, DATE_RANGE_OPTIONS, DateRangePreset } from "@/types/recommendations";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, ChevronDown } from "lucide-react";
+import { CalendarIcon, ChevronDown, RotateCw } from "lucide-react";
 import { calculateDateRange } from "@/lib/dateUtils";
 import axiosInstance, { BACKEND } from "@/lib/api";
 
@@ -28,6 +28,7 @@ interface RecommendationFilterBarProps {
     resourceOptions: CloudResourceMap[];
     isLoading: boolean;
     onRunAnalysis: () => void;
+    onReset: () => void;
     projectId: string;
     cloudPlatform: 'azure' | 'aws' | 'gcp';
 }
@@ -38,6 +39,7 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
     resourceOptions,
     isLoading,
     onRunAnalysis,
+    onReset,
     projectId,
     cloudPlatform
 }) => {
@@ -204,8 +206,19 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                     </div>
                 )}
 
-                {/* Run Analysis Button - Sticks to the end */}
-                <div className="flex-shrink-0 ml-auto">
+                {/* Reset Button and Run Analysis Button - Stick to the end */}
+                <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                    {/* Reset Button */}
+                    <Button
+                        onClick={onReset}
+                        variant="outline"
+                        className="h-9 w-9 p-0 border-[#233E7D] text-[#233E7D] hover:bg-[#233E7D] hover:text-white transition-all duration-300"
+                        title="Reset all filters and clear results"
+                    >
+                        <RotateCw className="h-4 w-4" />
+                    </Button>
+
+                    {/* Run Analysis Button */}
                     <Button
                         onClick={onRunAnalysis}
                         disabled={isLoading || !filters.resourceType || !filters.startDate || !filters.endDate}
