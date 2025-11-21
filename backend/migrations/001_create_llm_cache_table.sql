@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS llm_cache (
     start_date DATE NULL,
     end_date DATE NULL,
     output_json JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create index on hash_key for fast lookups
