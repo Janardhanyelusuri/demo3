@@ -267,22 +267,24 @@ async def get_resource_ids(
 
         if cloud == "azure":
             if res_type in ["vm", "virtualmachine", "virtual_machine"]:
-                # Fetch VM resource IDs from Azure
+                # Fetch VM resource IDs from Azure (excluding Databricks)
                 query = f"""
                     SELECT DISTINCT LOWER(resource_id) as resource_id, resource_name
                     FROM {schema_name}.gold_azure_resource_dim
                     WHERE service_category = 'Compute'
                       AND (LOWER(resource_id) LIKE '%/virtualmachines/%'
                            OR LOWER(resource_id) LIKE '%/compute/virtualmachines%')
+                      AND LOWER(resource_id) NOT LIKE '%databricks%'
                     ORDER BY resource_name
                     LIMIT 100;
                 """
             elif res_type in ["storage", "storageaccount", "storage_account"]:
-                # Fetch Storage Account resource IDs from Azure
+                # Fetch Storage Account resource IDs from Azure (excluding Databricks)
                 query = f"""
                     SELECT DISTINCT LOWER(resource_id) as resource_id, storage_account_name as resource_name
                     FROM {schema_name}.dim_storage_account
                     WHERE resource_id IS NOT NULL
+                      AND LOWER(resource_id) NOT LIKE '%databricks%'
                     ORDER BY storage_account_name
                     LIMIT 100;
                 """
