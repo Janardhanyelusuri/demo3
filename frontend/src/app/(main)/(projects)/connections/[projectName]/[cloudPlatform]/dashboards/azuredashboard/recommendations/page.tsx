@@ -22,6 +22,7 @@ const AzureRecommendationsPage: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -72,13 +73,33 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Navigation functions for carousel
+  // Navigation functions for carousel with smooth transitions
   const handlePrevious = () => {
-    setCurrentIndex((prev) => Math.max(0, prev - 1));
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => Math.max(0, prev - 1));
+      setTimeout(() => setIsTransitioning(false), 100);
+    }, 200);
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => Math.min(recommendations.length - 1, prev + 1));
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => Math.min(recommendations.length - 1, prev + 1));
+      setTimeout(() => setIsTransitioning(false), 100);
+    }, 200);
+  };
+
+  // Direct navigation from pagination dots with transition
+  const handleDotClick = (index: number) => {
+    if (isTransitioning || index === currentIndex) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentIndex(index);
+      setTimeout(() => setIsTransitioning(false), 100);
+    }, 200);
   };
 
   // Get current recommendation
@@ -170,9 +191,15 @@ const AzureRecommendationsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Display Current Recommendation Card */}
+          {/* Display Current Recommendation Card with smooth transition */}
           {currentRecommendation && (
-            <div className="transition-all duration-300 ease-in-out">
+            <div
+              className={`transition-all duration-500 ease-in-out transform ${
+                isTransitioning
+                  ? 'opacity-0 scale-95 translate-y-4'
+                  : 'opacity-100 scale-100 translate-y-0'
+              }`}
+            >
               <RecommendationCard recommendation={currentRecommendation} />
             </div>
           )}
@@ -183,12 +210,13 @@ const AzureRecommendationsPage: React.FC = () => {
               {recommendations.map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => setCurrentIndex(index)}
-                  className={`h-1.5 rounded-full transition-all duration-200 ${
+                  onClick={() => handleDotClick(index)}
+                  disabled={isTransitioning}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
                     index === currentIndex
-                      ? 'w-6 bg-[#233E7D]'
-                      : 'w-1.5 bg-gray-300 hover:bg-gray-400'
-                  }`}
+                      ? 'w-6 bg-[#233E7D] shadow-md'
+                      : 'w-1.5 bg-gray-300 hover:bg-gray-400 hover:scale-125'
+                  } ${isTransitioning ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                   aria-label={`Go to resource ${index + 1}`}
                 />
               ))}
