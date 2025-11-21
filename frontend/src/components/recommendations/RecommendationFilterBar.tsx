@@ -54,34 +54,54 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
     useEffect(() => {
         if (!filters.resourceType || !filters.resourceIdEnabled) {
             setResourceIds([]);
+            setLoadingResourceIds(false);
             return;
         }
 
         // Create AbortController for this request
         const abortController = new AbortController();
+        let isMounted = true;
 
         const fetchResourceIds = async () => {
             setLoadingResourceIds(true);
+            setResourceIds([]); // Clear existing data before fetching
+
             try {
                 const resourceMap = resourceOptions.find(r => r.displayName === filters.resourceType);
-                if (!resourceMap) return;
+                if (!resourceMap) {
+                    if (isMounted) {
+                        setLoadingResourceIds(false);
+                    }
+                    return;
+                }
 
                 const url = `${BACKEND}/llm/${cloudPlatform}/${projectId}/resources/${resourceMap.backendKey}`;
+                console.log('Fetching resource IDs from:', url);
+
                 const response = await axiosInstance.get(url, {
                     signal: abortController.signal
                 });
 
-                if (response.data.status === 'success') {
+                console.log('Resource IDs response:', response.data);
+
+                if (isMounted && response.data.status === 'success') {
                     setResourceIds(response.data.resource_ids || []);
+                    console.log('Set resource IDs:', response.data.resource_ids?.length || 0, 'items');
                 }
             } catch (error: any) {
+                // Always clear resourceIds on error to ensure clean state
+                if (isMounted) {
+                    setResourceIds([]);
+                }
+
                 // Don't log error if request was cancelled
                 if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
                     console.error('Error fetching resource IDs:', error);
-                    setResourceIds([]);
                 }
             } finally {
-                setLoadingResourceIds(false);
+                if (isMounted) {
+                    setLoadingResourceIds(false);
+                }
             }
         };
 
@@ -89,9 +109,10 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
 
         // Cleanup: abort the request if component unmounts or dependencies change
         return () => {
+            isMounted = false;
             abortController.abort();
         };
-    }, [filters.resourceType, filters.resourceIdEnabled, projectId, cloudPlatform, resourceOptions]);
+    }, [filters.resourceType, filters.resourceIdEnabled, projectId, cloudPlatform]);
 
     // Handle date range preset change
     const handleDateRangePresetChange = (preset: DateRangePreset) => {
