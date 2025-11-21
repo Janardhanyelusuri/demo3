@@ -52,7 +52,15 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
 
     // Fetch resource IDs when resource type changes
     useEffect(() => {
+        console.log('🔄 useEffect triggered:', {
+            resourceType: filters.resourceType,
+            resourceIdEnabled: filters.resourceIdEnabled,
+            projectId,
+            cloudPlatform
+        });
+
         if (!filters.resourceType || !filters.resourceIdEnabled) {
+            console.log('❌ Not fetching - resourceType or toggle disabled');
             setResourceIds([]);
             setLoadingResourceIds(false);
             return;
@@ -69,6 +77,7 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
             try {
                 const resourceMap = resourceOptions.find(r => r.displayName === filters.resourceType);
                 if (!resourceMap) {
+                    console.log('❌ No resource map found for:', filters.resourceType);
                     if (isMounted) {
                         setLoadingResourceIds(false);
                     }
@@ -76,31 +85,45 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                 }
 
                 const url = `${BACKEND}/llm/${cloudPlatform}/${projectId}/resources/${resourceMap.backendKey}`;
-                console.log('Fetching resource IDs from:', url);
+                console.log('🚀 Fetching resource IDs from:', url);
+                console.log('📍 Resource map:', resourceMap);
 
                 const response = await axiosInstance.get(url, {
                     signal: abortController.signal
                 });
 
-                console.log('Resource IDs response:', response.data);
+                console.log('✅ Resource IDs response:', response.data);
 
                 if (isMounted && response.data.status === 'success') {
-                    setResourceIds(response.data.resource_ids || []);
-                    console.log('Set resource IDs:', response.data.resource_ids?.length || 0, 'items');
+                    const ids = response.data.resource_ids || [];
+                    setResourceIds(ids);
+                    console.log('✅ Set resource IDs:', ids.length, 'items');
+                    if (ids.length > 0) {
+                        console.log('📋 First resource:', ids[0]);
+                    }
+                } else if (isMounted) {
+                    console.log('⚠️ Response status not success or component unmounted');
                 }
             } catch (error: any) {
+                console.log('❌ Error caught:', {
+                    name: error.name,
+                    message: error.message,
+                    isCanceled: error.name === 'CanceledError' || error.name === 'AbortError'
+                });
+
                 // Always clear resourceIds on error to ensure clean state
                 if (isMounted) {
                     setResourceIds([]);
                 }
 
-                // Don't log error if request was cancelled
+                // Don't log full error if request was cancelled
                 if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
-                    console.error('Error fetching resource IDs:', error);
+                    console.error('❌ Error fetching resource IDs:', error);
                 }
             } finally {
                 if (isMounted) {
                     setLoadingResourceIds(false);
+                    console.log('✅ Fetch complete, loading set to false');
                 }
             }
         };
@@ -109,6 +132,7 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
 
         // Cleanup: abort the request if component unmounts or dependencies change
         return () => {
+            console.log('🧹 Cleanup: aborting request');
             isMounted = false;
             abortController.abort();
         };
