@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import { NormalizedRecommendation, RecommendationFilters, AZURE_RESOURCES } from "@/types/recommendations";
 import { fetchRecommendationsWithFilters } from "@/lib/recommendations";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import axiosInstance from "@/lib/api";
+import axiosInstance, { BACKEND } from "@/lib/api";
 
 // NEW SHARED COMPONENT IMPORTS
 import RecommendationFilterBar from "@/components/recommendations/RecommendationFilterBar";
@@ -45,7 +45,7 @@ const AzureRecommendationsPage: React.FC = () => {
   // Helper function to cancel backend task
   const cancelBackendTask = async (taskId: string) => {
     try {
-      await axiosInstance.post(`/llm/tasks/${taskId}/cancel`);
+      await axiosInstance.post(`${BACKEND}/llm/tasks/${taskId}/cancel`);
       console.log(`✅ Cancelled backend task: ${taskId}`);
     } catch (error) {
       console.error('Error cancelling backend task:', error);
@@ -143,7 +143,7 @@ const AzureRecommendationsPage: React.FC = () => {
       // If we don't have a task_id (aborted too quickly), cancel all active tasks
       console.log('No task_id found, fetching all active tasks to cancel...');
       try {
-        const tasksResponse = await axiosInstance.get('/llm/tasks');
+        const tasksResponse = await axiosInstance.get(`${BACKEND}/llm/tasks`);
         const tasksData = tasksResponse.data;
         console.log(`✅ Fetched tasks response:`, tasksData);
         console.log(`Found ${tasksData.count} active tasks, cancelling all...`);
