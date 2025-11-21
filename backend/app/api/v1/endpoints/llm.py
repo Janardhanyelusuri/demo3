@@ -2,7 +2,7 @@ import sys
 import os
 import json
 from typing import Optional, Union
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
 from app.models.project import Project
@@ -143,6 +143,7 @@ async def llm_aws(
 async def llm_azure(
     project_id: str,
     payload: LLMRequest,
+    response: Response,
 ):
     schema = await _resolve_schema_name(project_id, payload.schema_name)
 
@@ -181,6 +182,9 @@ async def llm_azure(
                 "resource_id": payload.resource_id
             }
         )
+
+        # Set task_id in response header immediately so frontend can cancel even if request is aborted
+        response.headers["X-Task-ID"] = task_id
 
         print(f"🔄 Cache miss - calling LLM for Azure {payload.resource_type} (task: {task_id})")
 

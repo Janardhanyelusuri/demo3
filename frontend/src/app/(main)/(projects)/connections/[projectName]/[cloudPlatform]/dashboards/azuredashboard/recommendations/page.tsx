@@ -92,13 +92,14 @@ const AzureRecommendationsPage: React.FC = () => {
         filters,
         abortControllerRef.current.signal
       );
-      setRecommendations(result.recommendations);
 
-      // Store task_id for potential cancellation
+      // Store task_id immediately for potential cancellation
       if (result.taskId) {
         currentTaskIdRef.current = result.taskId;
         console.log(`📋 Started task: ${result.taskId}`);
       }
+
+      setRecommendations(result.recommendations);
     } catch (err) {
       // Robust error handling
       if (err instanceof Error) {
@@ -112,8 +113,13 @@ const AzureRecommendationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
-      // Clear task_id after completion
-      currentTaskIdRef.current = null;
+      // Only clear task_id if no longer needed
+      if (currentTaskIdRef.current) {
+        // Keep task_id for a moment in case of late cancellation
+        setTimeout(() => {
+          currentTaskIdRef.current = null;
+        }, 1000);
+      }
     }
   };
 
