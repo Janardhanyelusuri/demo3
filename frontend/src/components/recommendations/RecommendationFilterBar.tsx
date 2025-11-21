@@ -57,6 +57,9 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
             return;
         }
 
+        // Create AbortController for this request
+        const abortController = new AbortController();
+
         const fetchResourceIds = async () => {
             setLoadingResourceIds(true);
             try {
@@ -64,20 +67,30 @@ const RecommendationFilterBar: React.FC<RecommendationFilterBarProps> = ({
                 if (!resourceMap) return;
 
                 const url = `${BACKEND}/llm/${cloudPlatform}/${projectId}/resources/${resourceMap.backendKey}`;
-                const response = await axiosInstance.get(url);
+                const response = await axiosInstance.get(url, {
+                    signal: abortController.signal
+                });
 
                 if (response.data.status === 'success') {
                     setResourceIds(response.data.resource_ids || []);
                 }
-            } catch (error) {
-                console.error('Error fetching resource IDs:', error);
-                setResourceIds([]);
+            } catch (error: any) {
+                // Don't log error if request was cancelled
+                if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
+                    console.error('Error fetching resource IDs:', error);
+                    setResourceIds([]);
+                }
             } finally {
                 setLoadingResourceIds(false);
             }
         };
 
         fetchResourceIds();
+
+        // Cleanup: abort the request if component unmounts or dependencies change
+        return () => {
+            abortController.abort();
+        };
     }, [filters.resourceType, filters.resourceIdEnabled, projectId, cloudPlatform, resourceOptions]);
 
     // Handle date range preset change
