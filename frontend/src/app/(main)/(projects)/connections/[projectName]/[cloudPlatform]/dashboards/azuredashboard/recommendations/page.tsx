@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { NormalizedRecommendation, RecommendationFilters, AZURE_RESOURCES } from "@/types/recommendations";
 import { fetchRecommendationsWithFilters } from "@/lib/recommendations";
@@ -23,6 +23,9 @@ const AzureRecommendationsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // AbortController ref to cancel ongoing requests
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -50,6 +53,14 @@ const AzureRecommendationsPage: React.FC = () => {
         return;
     }
 
+    // Cancel any ongoing request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create a new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
     setIsLoading(true);
     setError(null);
     setCurrentIndex(0); // Reset to first recommendation
@@ -58,19 +69,50 @@ const AzureRecommendationsPage: React.FC = () => {
       const normalizedData = await fetchRecommendationsWithFilters(
         projectId,
         cloudPlatform,
-        filters
+        filters,
+        abortControllerRef.current.signal
       );
       setRecommendations(normalizedData);
     } catch (err) {
       // Robust error handling
       if (err instanceof Error) {
-        setError(err.message);
+        // Don't show error message if request was cancelled
+        if (err.message !== 'Analysis cancelled') {
+          setError(err.message);
+        }
       } else {
         setError("An unknown error occurred while fetching recommendations.");
       }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  // Reset all filters and clear results
+  const handleReset = () => {
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Reset filters to initial state
+    setFilters({
+      resourceType: resourceOptions[0]?.displayName || '',
+      resourceId: undefined,
+      resourceIdEnabled: false,
+      dateRangePreset: 'last_month',
+      startDate: undefined,
+      endDate: undefined,
+    });
+
+    // Clear all state
+    setRecommendations([]);
+    setCurrentIndex(0);
+    setError(null);
+    setIsLoading(false);
+    setIsTransitioning(false);
   };
 
   // Navigation functions for carousel with smooth transitions
@@ -114,6 +156,7 @@ const AzureRecommendationsPage: React.FC = () => {
         resourceOptions={resourceOptions}
         isLoading={isLoading}
         onRunAnalysis={handleFetch}
+        onReset={handleReset}
         projectId={projectId}
         cloudPlatform={cloudPlatform}
       />

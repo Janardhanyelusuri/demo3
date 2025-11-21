@@ -70,11 +70,13 @@ const getBackendKey = (cloud: string, displayName: string): string | undefined =
 
 /**
  * Public function: Fetches recommendations based on user-selected filters.
+ * @param signal - Optional AbortSignal to cancel the request
  */
 export const fetchRecommendationsWithFilters = async (
-    projectId: string, 
+    projectId: string,
     cloudPlatform: 'azure' | 'aws' | 'gcp',
-    filters: RecommendationFilters
+    filters: RecommendationFilters,
+    signal?: AbortSignal
 ): Promise<NormalizedRecommendation[]> => {
     
     // 1. Get the internal backend key from the selected display name
@@ -97,7 +99,8 @@ export const fetchRecommendationsWithFilters = async (
 
     try {
         const response = await axiosInstance.post(url, body, {
-            headers: { "Content-Type": "application/json" }
+            headers: { "Content-Type": "application/json" },
+            signal: signal // Pass the abort signal to axios
         });
         
         // 3. Parse the JSON string from the 'recommendations' field
@@ -111,7 +114,13 @@ export const fetchRecommendationsWithFilters = async (
 
         return [];
 
-    } catch (err) {
+    } catch (err: any) {
+        // Handle request cancellation gracefully
+        if (err.name === 'CanceledError' || err.name === 'AbortError') {
+            console.log('Request was cancelled by user');
+            throw new Error('Analysis cancelled');
+        }
+
         console.error(`API Error fetching ${cloudPlatform} ${backendKey}:`, err);
         // Throw a user-friendly error after logging the technical details
         throw new Error(`Failed to load ${filters.resourceType} analysis. Please check the backend service.`);
