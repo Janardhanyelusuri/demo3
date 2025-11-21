@@ -106,12 +106,8 @@ const AzureRecommendationsPage: React.FC = () => {
   const currentRecommendation = recommendations[currentIndex];
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4 text-[#233E7D]">
-        Azure Cost Optimization Recommendations
-      </h1>
-
-      {/* FILTER BAR UI (Uses shared component with new props) */}
+    <div className="p-4">
+      {/* FILTER BAR UI - Moved to top, removed title */}
       <RecommendationFilterBar
         filters={filters}
         setFilters={setFilters}
