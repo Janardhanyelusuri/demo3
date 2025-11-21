@@ -535,13 +535,17 @@ def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_
 
 
 @connection
-def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None, task_id=None) -> List[Dict[str, Any]]:
     """
     NEW FUNCTION: Fetch ALL distinct VMs and process each through LLM individually.
+
+    Args:
+        task_id: Optional task ID for cancellation support
 
     Returns:
         List of recommendation dictionaries, one per VM resource
     """
+    from app.core.task_manager import task_manager
     if end_date is None:
         end_dt = datetime.utcnow().date()
     else:
@@ -575,6 +579,11 @@ def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None) 
 
     # Process each row (resource) individually through LLM
     for idx, row in df.iterrows():
+        # Check if task has been cancelled
+        if task_id and task_manager.is_cancelled(task_id):
+            print(f"🛑 Task {task_id} was cancelled. Stopping VM analysis. Processed {len(recommendations)}/{total_resources}")
+            break
+
         resource_id = row.get('resource_id', 'Unknown')
         print(f"  [{idx + 1}/{total_resources}] Processing VM: {resource_id}")
 
@@ -596,13 +605,17 @@ def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None) 
 
 
 @connection
-def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=None, task_id=None) -> List[Dict[str, Any]]:
     """
     NEW FUNCTION: Fetch ALL distinct Storage Accounts and process each through LLM individually.
+
+    Args:
+        task_id: Optional task ID for cancellation support
 
     Returns:
         List of recommendation dictionaries, one per Storage Account
     """
+    from app.core.task_manager import task_manager
     if end_date is None:
         end_dt = datetime.utcnow().date()
     else:
@@ -636,6 +649,11 @@ def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=N
 
     # Process each row (resource) individually through LLM
     for idx, row in df.iterrows():
+        # Check if task has been cancelled
+        if task_id and task_manager.is_cancelled(task_id):
+            print(f"🛑 Task {task_id} was cancelled. Stopping Storage analysis. Processed {len(recommendations)}/{total_resources}")
+            break
+
         resource_id = row.get('resource_id', 'Unknown')
         print(f"  [{idx + 1}/{total_resources}] Processing Storage Account: {resource_id}")
 
@@ -656,13 +674,16 @@ def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=N
     return recommendations
 
 
-def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None, resource_id=None):
+def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None, resource_id=None, task_id=None):
     """
     Unified entry point for running LLM cost optimization analyses.
 
     NEW BEHAVIOR:
     - If resource_id is provided: Returns a single recommendation dict for that resource
     - If resource_id is None: Fetches ALL distinct resources and returns a list of recommendations
+
+    Args:
+        task_id: Optional task ID for cancellation support
 
     Returns:
         - Single dict if resource_id is provided
@@ -681,7 +702,7 @@ def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None,
             return final_response
         else:
             # Fetch all distinct VMs and process each
-            final_response = run_llm_vm_all_resources(schema_name, start_date=start_date, end_date=end_date)
+            final_response = run_llm_vm_all_resources(schema_name, start_date=start_date, end_date=end_date, task_id=task_id)
             print(f'Final response (all VMs): {len(final_response)} resources processed')
             return final_response
 
@@ -693,7 +714,7 @@ def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None,
             return final_response
         else:
             # Fetch all distinct storage accounts and process each
-            final_response = run_llm_storage_all_resources(schema_name, start_date=start_date, end_date=end_date)
+            final_response = run_llm_storage_all_resources(schema_name, start_date=start_date, end_date=end_date, task_id=task_id)
             print(f'Final response (all Storage): {len(final_response)} resources processed')
             return final_response
     else:

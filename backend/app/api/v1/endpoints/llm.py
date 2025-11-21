@@ -9,6 +9,7 @@ from app.models.project import Project
 from datetime import datetime, date
 from typing import List
 from app.core.llm_cache_utils import generate_cache_hash_key, get_cached_result, save_to_cache
+from app.core.task_manager import task_manager
 try:
     from app.ingestion.aws.llm_s3_integration import run_llm_analysis_s3
     from app.ingestion.aws.llm_ec2_vpc_integration import run_llm_analysis as run_llm_analysis_ec2_vpc
@@ -47,6 +48,7 @@ class LLMResponse(BaseModel):
     recommendations: Optional[str] = None
     details: Optional[dict] = None
     timestamp: datetime
+    task_id: Optional[str] = None  # Task ID for cancellation
 
 
 async def _resolve_schema_name(project_id: Optional[Union[int, str]], schema_name: Optional[str]) -> str:
@@ -162,41 +164,64 @@ async def llm_azure(
 
     # Check cache first
     cached_result = await get_cached_result(hash_key)
+    task_id = None
 
     if cached_result:
         # Return cached result
         print(f"📦 Returning cached result for Azure {payload.resource_type}")
         result_list = cached_result
     else:
-        # Cache miss - call LLM
-        print(f"🔄 Cache miss - calling LLM for Azure {payload.resource_type}")
-        result = run_llm_analysis(
-            payload.resource_type,
-            schema,
-            payload.start_date,
-            payload.end_date,
-            payload.resource_id,
+        # Cache miss - create task and call LLM
+        task_id = task_manager.create_task(
+            task_type="llm_analysis",
+            metadata={
+                "cloud": "azure",
+                "resource_type": payload.resource_type,
+                "schema": schema,
+                "resource_id": payload.resource_id
+            }
         )
 
-        # Convert single dict result to list for consistent frontend handling
-        if result is not None:
-            result_list = [result] if isinstance(result, dict) else result
-            print(f'Final response__list: {len(result_list)} resources processed')
-        else:
-            result_list = []
+        print(f"🔄 Cache miss - calling LLM for Azure {payload.resource_type} (task: {task_id})")
 
-        # Save to cache (async)
-        if result_list:
-            await save_to_cache(
-                hash_key=hash_key,
-                cloud_platform="azure",
-                schema_name=schema,
-                resource_type=payload.resource_type,
-                start_date=start_dt,
-                end_date=end_dt,
-                resource_id=payload.resource_id,
-                output_json=result_list
+        try:
+            result = run_llm_analysis(
+                payload.resource_type,
+                schema,
+                payload.start_date,
+                payload.end_date,
+                payload.resource_id,
+                task_id=task_id
             )
+
+            # Convert single dict result to list for consistent frontend handling
+            if result is not None:
+                result_list = [result] if isinstance(result, dict) else result
+                print(f'Final response__list: {len(result_list)} resources processed')
+            else:
+                result_list = []
+
+            # Save to cache (async)
+            if result_list:
+                await save_to_cache(
+                    hash_key=hash_key,
+                    cloud_platform="azure",
+                    schema_name=schema,
+                    resource_type=payload.resource_type,
+                    start_date=start_dt,
+                    end_date=end_dt,
+                    resource_id=payload.resource_id,
+                    output_json=result_list
+                )
+
+            # Mark task as complete
+            task_manager.complete_task(task_id)
+
+        except Exception as e:
+            # Mark task as complete even on error
+            if task_id:
+                task_manager.complete_task(task_id)
+            raise
 
     return LLMResponse(
         status="success",
@@ -208,7 +233,8 @@ async def llm_azure(
         resource_id=payload.resource_id,
         recommendations=json.dumps(result_list) if result_list else None,
         details=None,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.utcnow(),
+        task_id=task_id
     )
 
 
@@ -332,4 +358,59 @@ async def get_resource_ids(
         "schema_name": schema,
         "resource_ids": resource_ids,
         "count": len(resource_ids)
+    }
+
+
+# ---------------------------------------------------------
+# TASK MANAGEMENT ENDPOINTS
+# ---------------------------------------------------------
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    """
+    Cancel a running LLM analysis task.
+    """
+    success = task_manager.cancel_task(task_id)
+
+    if success:
+        return {
+            "status": "success",
+            "message": f"Task {task_id} has been cancelled",
+            "task_id": task_id
+        }
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {task_id} not found"
+        )
+
+
+@router.get("/tasks")
+async def list_tasks():
+    """
+    List all active tasks.
+    """
+    tasks = task_manager.list_active_tasks()
+    return {
+        "status": "success",
+        "tasks": tasks,
+        "count": len(tasks)
+    }
+
+
+@router.get("/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Get status of a specific task.
+    """
+    task_status = task_manager.get_task_status(task_id)
+
+    if task_status.get('status') == 'not_found':
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {task_id} not found"
+        )
+
+    return {
+        "status": "success",
+        "task": task_status
     }
