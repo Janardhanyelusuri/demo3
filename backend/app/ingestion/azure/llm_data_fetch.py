@@ -79,6 +79,9 @@ def fetch_vm_utilization_data(conn, schema_name, start_date, end_date, resource_
         resource_filter_sql = "AND LOWER(resource_id) = LOWER(%(resource_id)s)"
         resource_dim_filter_sql = "WHERE LOWER(resource_id) = LOWER(%(resource_id)s)"
         params["resource_id"] = resource_id
+    else:
+        # Exclude Databricks resources when fetching all VMs
+        resource_dim_filter_sql = "WHERE LOWER(resource_id) NOT LIKE '%databricks%'"
 
     # Define the list of essential metrics
     essential_metrics = (
@@ -191,7 +194,7 @@ def fetch_vm_utilization_data(conn, schema_name, start_date, end_date, resource_
                 service_category,
                 service_name
             FROM {schema_name}.gold_azure_resource_dim
-            {resource_dim_filter_sql} 
+            {resource_dim_filter_sql}
         )
 
         SELECT
@@ -328,6 +331,9 @@ def fetch_storage_account_utilization_data(
         params["resource_id"] = resource_id
         resource_filter_sql = "AND LOWER(resource_id) = LOWER(%(resource_id)s)"
         resource_filter_dim = "WHERE LOWER(resource_id) = LOWER(%(resource_id)s)"
+    else:
+        # Exclude Databricks resources when fetching all Storage Accounts
+        resource_filter_dim = "WHERE LOWER(resource_id) NOT LIKE '%databricks%'"
 
 
     query = f"""
