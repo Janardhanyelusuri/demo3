@@ -373,7 +373,17 @@ async def cancel_task(task_id: str):
     """
     Cancel a running LLM analysis task.
     """
+    print(f"🔔 CANCEL REQUEST RECEIVED for task: {task_id}")
+
+    # List all active tasks for debugging
+    active_tasks = task_manager.list_active_tasks()
+    print(f"📋 Active tasks: {len(active_tasks)}")
+    for task in active_tasks:
+        print(f"  - {task['id'][:8]}... status={task['status']}")
+
     success = task_manager.cancel_task(task_id)
+
+    print(f"{'✅' if success else '❌'} Cancellation result: {success}")
 
     if success:
         return {
@@ -382,6 +392,7 @@ async def cancel_task(task_id: str):
             "task_id": task_id
         }
     else:
+        print(f"⚠️  Task {task_id} not found in active tasks")
         raise HTTPException(
             status_code=404,
             detail=f"Task {task_id} not found"

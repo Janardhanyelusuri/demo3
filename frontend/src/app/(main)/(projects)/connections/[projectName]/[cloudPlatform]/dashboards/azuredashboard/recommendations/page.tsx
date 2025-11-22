@@ -45,10 +45,20 @@ const AzureRecommendationsPage: React.FC = () => {
   // Helper function to cancel backend task
   const cancelBackendTask = async (taskId: string) => {
     try {
-      await axiosInstance.post(`${BACKEND}/llm/tasks/${taskId}/cancel`);
-      console.log(`✅ Cancelled backend task: ${taskId}`);
-    } catch (error) {
-      console.error('Error cancelling backend task:', error);
+      console.log(`🔄 Attempting to cancel backend task: ${taskId}`);
+      console.log(`📡 Calling: ${BACKEND}/llm/tasks/${taskId}/cancel`);
+
+      const response = await axiosInstance.post(`${BACKEND}/llm/tasks/${taskId}/cancel`);
+
+      console.log(`✅ Cancelled backend task: ${taskId}`, response.data);
+    } catch (error: any) {
+      console.error('❌ Error cancelling backend task:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
     }
   };
 
@@ -96,6 +106,9 @@ const AzureRecommendationsPage: React.FC = () => {
       if (result.taskId) {
         currentTaskIdRef.current = result.taskId;
         console.log(`📋 Started task: ${result.taskId}`);
+        console.log(`✅ Task ID stored in currentTaskIdRef`);
+      } else {
+        console.warn('⚠️  No task_id received from backend');
       }
 
       setRecommendations(result.recommendations);
@@ -128,16 +141,20 @@ const AzureRecommendationsPage: React.FC = () => {
 
     // Cancel any ongoing HTTP request
     if (abortControllerRef.current) {
-      console.log('Aborting HTTP request...');
+      console.log('✋ Aborting HTTP request...');
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    } else {
+      console.log('ℹ️  No active HTTP request to abort');
     }
 
     // Cancel backend task if we have the task_id
     if (currentTaskIdRef.current) {
-      console.log(`Cancelling backend task: ${currentTaskIdRef.current}`);
+      console.log(`🎯 Cancelling backend task: ${currentTaskIdRef.current}`);
       await cancelBackendTask(currentTaskIdRef.current);
       currentTaskIdRef.current = null;
+    } else {
+      console.log('ℹ️  No task_id available - backend will complete in background');
     }
     // If no task_id, just let it finish in background - no harm done
 
