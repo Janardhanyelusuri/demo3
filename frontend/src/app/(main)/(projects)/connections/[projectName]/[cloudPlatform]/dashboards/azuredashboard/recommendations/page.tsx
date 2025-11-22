@@ -150,6 +150,9 @@ const AzureRecommendationsPage: React.FC = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
+    // IMMEDIATELY stop loading indicator so user sees response
+    setIsLoading(false);
+
     console.log(`🔄 [RESET-v4.0-NO-AUTH] Reset clicked (new generation: ${generationRef.current})`);
 
     // CRITICAL: AWAIT the cancel request to ensure it completes before state updates
@@ -172,7 +175,6 @@ const AzureRecommendationsPage: React.FC = () => {
     setRecommendations([]);
     setCurrentIndex(0);
     setError(null);
-    setIsLoading(false);
     setIsTransitioning(false);
 
     console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
