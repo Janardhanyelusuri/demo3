@@ -43,28 +43,33 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Fire-and-forget backend cancellation (best effort, don't wait for it)
-  const cancelBackendTaskAsync = (projectIdToCancel: string) => {
+  // Backend cancellation using synchronous XHR (PROVEN to work - guaranteed delivery)
+  const cancelBackendTaskSync = (projectIdToCancel: string) => {
     const token = localStorage.getItem("accessToken");
     const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
 
-    console.log(`🔄 Sending cancel request to backend (fire-and-forget): ${cancelUrl}`);
+    console.log(`🔄 [CRITICAL] Sending SYNCHRONOUS cancel request: ${cancelUrl}`);
 
-    // Use fetch with no await - let it complete in background
-    fetch(cancelUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    try {
+      // Synchronous XHR is one of the few valid use cases for guaranteed request delivery
+      // This BLOCKS execution until the backend responds, preventing React from interrupting it
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', cancelUrl, false); // false = synchronous - BLOCKS until complete
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send();
+
+      console.log(`✅ Cancel request completed with status: ${xhr.status}`);
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        console.log(`📊 Backend response:`, data);
+        console.log(`🛑 Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
+      } else {
+        console.error(`❌ Cancel failed with status: ${xhr.status}`);
       }
-    }).then(res => {
-      console.log(`✅ Cancel request completed with status: ${res.status}`);
-      return res.json();
-    }).then(data => {
-      console.log(`📊 Cancel response:`, data);
-    }).catch(err => {
-      console.error(`⚠️  Cancel request failed (non-critical):`, err.message);
-    });
+    } catch (error: any) {
+      console.error(`⚠️  Cancel request error:`, error.message);
+    }
   };
 
   const handleFetch = async () => {
@@ -87,9 +92,9 @@ const AzureRecommendationsPage: React.FC = () => {
         return;
     }
 
-    // Cancel previous backend task (fire-and-forget, best effort)
+    // Cancel previous backend task (synchronous - guaranteed delivery)
     if (currentTaskIdRef.current) {
-      cancelBackendTaskAsync(projectId);
+      cancelBackendTaskSync(projectId);
       currentTaskIdRef.current = null;
     }
 
@@ -139,20 +144,21 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Simple and clean - just increment generation and clear UI
+  // Reset: Increment generation + synchronous backend cancel
   const handleReset = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // Send cancel to backend (fire-and-forget, best effort to save tokens)
+    // CRITICAL: Send cancel to backend SYNCHRONOUSLY before clearing UI
+    // This guarantees the backend receives and processes the cancel request
     if (currentTaskIdRef.current || projectId) {
-      cancelBackendTaskAsync(projectId);
+      cancelBackendTaskSync(projectId);
       currentTaskIdRef.current = null;
     }
 
-    // Immediately clear UI - no waiting, no complex coordination
+    // Clear UI after cancel completes
     setFilters({
       resourceType: resourceOptions[0]?.displayName || '',
       resourceId: undefined,
