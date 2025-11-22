@@ -263,10 +263,15 @@ def fetch_vm_utilization_data(conn, schema_name, start_date, end_date, resource_
 
 
 @connection
-def run_llm_vm(conn, schema_name, start_date=None, end_date=None, resource_id=None) -> Optional[Dict[str, Any]]:
+def run_llm_vm(conn, schema_name, start_date=None, end_date=None, resource_id=None, task_id=None) -> Optional[Dict[str, Any]]:
     """
     Run LLM analysis for a single VM and return a single recommendation dict (or None).
+
+    Args:
+        task_id: Optional task ID for cancellation support
     """
+    from app.core.task_manager import task_manager
+
     if end_date is None:
         end_dt = datetime.utcnow().date()
     else:
@@ -279,6 +284,13 @@ def run_llm_vm(conn, schema_name, start_date=None, end_date=None, resource_id=No
 
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
+
+    # CRITICAL: Check if task was cancelled before starting
+    if task_id:
+        is_cancelled = task_manager.is_cancelled(task_id)
+        if is_cancelled:
+            print(f"🛑 Task {task_id} was cancelled before VM LLM could start. Returning None.")
+            return None
 
     print(f"🔎 Running VM LLM for {schema_name} from {start_str} to {end_str} "
           f"{'(resource_id filter applied)' if resource_id else ''}")
@@ -297,6 +309,13 @@ def run_llm_vm(conn, schema_name, start_date=None, end_date=None, resource_id=No
     if resource_id and df.shape[0] > 1:
         print(f"⚠️ WARNING: Resource ID was provided, but {df.shape[0]} records were fetched. Restricting to the first record for LLM analysis.")
     resource_row = df.head(1).to_dict(orient="records")[0]
+
+    # Check cancellation again before calling expensive LLM
+    if task_id:
+        is_cancelled = task_manager.is_cancelled(task_id)
+        if is_cancelled:
+            print(f"🛑 Task {task_id} was cancelled before LLM call. Returning None.")
+            return None
 
     # Call the imported LLM analysis function
     recommendation = get_compute_recommendation_single(resource_row)
@@ -489,10 +508,15 @@ def fetch_storage_account_utilization_data(
 
 
 @connection
-def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_id=None) -> Optional[Dict[str, Any]]:
+def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_id=None, task_id=None) -> Optional[Dict[str, Any]]:
     """
     Run LLM analysis for a single Storage Account and return a single recommendation dict (or None).
+
+    Args:
+        task_id: Optional task ID for cancellation support
     """
+    from app.core.task_manager import task_manager
+
     if end_date is None:
         end_dt = datetime.utcnow().date()
     else:
@@ -505,6 +529,13 @@ def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_
 
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
+
+    # CRITICAL: Check if task was cancelled before starting
+    if task_id:
+        is_cancelled = task_manager.is_cancelled(task_id)
+        if is_cancelled:
+            print(f"🛑 Task {task_id} was cancelled before Storage LLM could start. Returning None.")
+            return None
 
     print(f"🔎 Running Storage LLM for {schema_name} from {start_str} to {end_str} "
           f"{'(resource_id filter applied)' if resource_id else ''}")
@@ -522,6 +553,13 @@ def run_llm_storage(conn, schema_name, start_date=None, end_date=None, resource_
         print(f"⚠️ WARNING: Resource ID was provided, but {df.shape[0]} records were fetched. Restricting to the first record for LLM analysis.")
 
     resource_row = df.head(1).to_dict(orient="records")[0]
+
+    # Check cancellation again before calling expensive LLM
+    if task_id:
+        is_cancelled = task_manager.is_cancelled(task_id)
+        if is_cancelled:
+            print(f"🛑 Task {task_id} was cancelled before LLM call. Returning None.")
+            return None
 
     # Call the imported LLM analysis function
     recommendation = get_storage_recommendation_single(resource_row)
@@ -707,7 +745,7 @@ def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None,
     if rtype in ["vm", "virtualmachine", "virtual_machine"]:
         # If resource_id is provided, return single result
         if resource_id:
-            final_response = run_llm_vm(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
+            final_response = run_llm_vm(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id, task_id=task_id)
             print(f'Final response (single VM): {final_response}')
             return final_response
         else:
@@ -719,7 +757,7 @@ def run_llm_analysis(resource_type, schema_name, start_date=None, end_date=None,
     elif rtype in ["storage", "storageaccount", "storage_account"]:
         # If resource_id is provided, return single result
         if resource_id:
-            final_response = run_llm_storage(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id)
+            final_response = run_llm_storage(schema_name, start_date=start_date, end_date=end_date, resource_id=resource_id, task_id=task_id)
             print(f'Final response (single Storage): {final_response}')
             return final_response
         else:
