@@ -49,21 +49,27 @@ const AzureRecommendationsPage: React.FC = () => {
     console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
     try {
-      // Use axiosInstance for consistent CORS handling (auth header not needed for this endpoint)
-      const response = await axiosInstance.post(cancelUrl);
+      // Use raw fetch() WITHOUT Authorization header to avoid CORS preflight
+      // This ensures the fastest possible response time
+      const response = await fetch(cancelUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       console.log(`✅ [NO-AUTH] Cancel request completed with status: ${response.status}`);
-      console.log(`📊 [NO-AUTH] Backend response:`, response.data);
-      console.log(`🛑 [NO-AUTH] Cancelled ${response.data.cancelled_count} tasks for project ${projectIdToCancel}`);
+      console.log(`📊 [NO-AUTH] Backend response:`, data);
+      console.log(`🛑 [NO-AUTH] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
     } catch (error: any) {
-      if (error.response) {
-        console.error(`❌ [NO-AUTH] Failed with status: ${error.response.status}`);
-        console.error(`❌ [NO-AUTH] Response:`, error.response.data);
-      } else if (error.request) {
-        console.error(`⚠️  [NO-AUTH] No response received:`, error.request);
-      } else {
-        console.error(`⚠️  [NO-AUTH] Error:`, error.message);
-      }
+      console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
+      // Don't throw - we still want to clear the UI even if cancel fails
     }
   };
 
