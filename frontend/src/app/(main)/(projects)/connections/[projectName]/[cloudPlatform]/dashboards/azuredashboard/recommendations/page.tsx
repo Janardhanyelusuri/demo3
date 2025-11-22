@@ -48,38 +48,24 @@ const AzureRecommendationsPage: React.FC = () => {
     const cancelUrl = `${BACKEND}/cancel-tasks/${projectIdToCancel}`;
     console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
-    // Use Promise.race to timeout without aborting the request
-    // This prevents NS_BINDING_ABORTED errors in Firefox
-    const fetchPromise = fetch(cancelUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      keepalive: true,  // Allow request to complete even if page navigates away
-    }).then(async (response) => {
+    try {
+      // NO headers = "simple request" = NO CORS preflight = faster!
+      // keepalive ensures request completes even if page navigates away
+      const response = await fetch(cancelUrl, {
+        method: 'POST',
+        keepalive: true,
+      });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+
       const data = await response.json();
       console.log(`✅ [NO-AUTH] Cancel request completed with status: ${response.status}`);
       console.log(`📊 [NO-AUTH] Backend response:`, data);
       console.log(`🛑 [NO-AUTH] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
-      return data;
-    });
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), 3000)
-    );
-
-    try {
-      await Promise.race([fetchPromise, timeoutPromise]);
     } catch (error: any) {
-      if (error.message === 'timeout') {
-        console.warn(`⏱️  [NO-AUTH] Cancel request taking longer than expected, continuing anyway...`);
-        // Don't wait - let the request complete in background via keepalive
-      } else {
-        console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
-      }
+      console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
       // Don't throw - we still want to clear the UI even if cancel fails
     }
   };
