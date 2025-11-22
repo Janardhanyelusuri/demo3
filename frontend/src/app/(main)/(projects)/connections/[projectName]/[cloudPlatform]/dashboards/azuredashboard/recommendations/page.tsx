@@ -176,7 +176,8 @@ const AzureRecommendationsPage: React.FC = () => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          keepalive: true  // Ensure request completes even if page/component changes
         })
           .then(response => {
             console.log(`📡 Cancel response status: ${response.status}`);
@@ -194,7 +195,7 @@ const AzureRecommendationsPage: React.FC = () => {
             console.error('Error message:', error.message);
           });
       }
-    }, 100); // 100ms delay to let abort complete
+    }, 500); // 500ms delay to ensure abort fully completes and connection clears
 
     console.log('Resetting UI state...');
 
