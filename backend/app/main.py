@@ -147,20 +147,6 @@ async def cancel_tasks_no_auth(project_id: str, response: Response):
         }
 
 
-@app.options("/cancel-tasks/{project_id}")
-async def cancel_tasks_options(project_id: str):
-    """Handle OPTIONS preflight for cancel endpoint"""
-    print(f"🔄 [NO-AUTH] OPTIONS preflight received for project: {project_id}")
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        }
-    )
-
-
 @app.on_event('startup')
 async def load_config() -> None:
     """
