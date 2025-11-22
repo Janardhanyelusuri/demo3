@@ -169,56 +169,38 @@ const AzureRecommendationsPage: React.FC = () => {
     // Clear task_id immediately
     currentTaskIdRef.current = null;
 
-    // Send cancel request to backend and WAIT for it to complete before updating state
+    // CRITICAL: Send cancel request SYNCHRONOUSLY using sendBeacon or keepalive fetch
+    // This ensures the request completes even if component re-renders
     console.log('📡 Sending cancel request to backend...');
-    if (taskIdToCancel) {
-      // We have a specific task_id - cancel that task
-      console.log(`🎯 Cancelling backend task: ${taskIdToCancel}`);
-      await cancelBackendTask(taskIdToCancel);
-    } else {
-      // No task_id available (request was sent too recently)
-      // Cancel all tasks for this project as a fallback
-      console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
 
-      const token = localStorage.getItem("accessToken");
-      console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
-      console.log(`📡 Calling: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
+    const token = localStorage.getItem("accessToken");
+    console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
 
-      try {
-        console.log('🚀 About to make fetch call...');
-        console.log(`🔍 BACKEND value: "${BACKEND}"`);
-        console.log(`🔍 Full URL: "${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks"`);
+    // Try sendBeacon first (most reliable for fire-and-forget)
+    const cancelUrl = `${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`;
+    console.log(`📡 Calling: ${cancelUrl}`);
 
-        const response = await fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          keepalive: true
-        });
+    // Use XMLHttpRequest with async=false for guaranteed completion before state updates
+    // This is one of the few valid use cases for synchronous XHR
+    try {
+      console.log('🚀 Using synchronous XHR to guarantee delivery...');
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', cancelUrl, false); // false = synchronous
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send();
 
-        console.log(`📡 Cancel response received!`);
-        console.log(`📡 Response status: ${response.status}`);
-        console.log(`📡 Response ok: ${response.ok}`);
-
-        if (!response.ok) {
-          console.error(`❌ Response not OK: ${response.status} ${response.statusText}`);
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
+      console.log(`📡 Cancel response status: ${xhr.status}`);
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
         console.log(`✅ Cancelled project tasks:`, data);
-      } catch (error: any) {
-        console.error('❌❌❌ Error cancelling project tasks:', error);
-        console.error('Error type:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-
-        if (error instanceof TypeError) {
-          console.error('⚠️  TypeError - likely network error or CORS issue');
-        }
+      } else {
+        console.error(`❌ Cancel failed with status: ${xhr.status}`);
       }
+    } catch (error: any) {
+      console.error('❌❌❌ Error cancelling project tasks:', error);
+      console.error('Error type:', error.name);
+      console.error('Error message:', error.message);
     }
 
     console.log('Resetting UI state...');
