@@ -177,6 +177,7 @@ async def llm_azure(
             task_type="llm_analysis",
             metadata={
                 "cloud": "azure",
+                "project_id": project_id,
                 "resource_type": payload.resource_type,
                 "schema": schema,
                 "resource_id": payload.resource_id
@@ -397,6 +398,28 @@ async def cancel_task(task_id: str):
             status_code=404,
             detail=f"Task {task_id} not found"
         )
+
+
+@router.post("/projects/{project_id}/cancel-tasks")
+async def cancel_project_tasks(project_id: str):
+    """
+    Cancel all running LLM analysis tasks for a specific project.
+    This is useful when user aborts a request before receiving the task_id.
+    """
+    print(f"🔔 CANCEL ALL TASKS REQUEST for project: {project_id}")
+
+    # List all active tasks for debugging
+    active_tasks = task_manager.list_active_tasks()
+    print(f"📋 Total active tasks: {len(active_tasks)}")
+
+    cancelled_count = task_manager.cancel_tasks_by_project(project_id)
+
+    return {
+        "status": "success",
+        "message": f"Cancelled {cancelled_count} task(s) for project {project_id}",
+        "project_id": project_id,
+        "cancelled_count": cancelled_count
+    }
 
 
 @router.get("/tasks")
