@@ -48,26 +48,23 @@ const AzureRecommendationsPage: React.FC = () => {
     const cancelUrl = `${BACKEND}/cancel-tasks/${projectIdToCancel}`;
     console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
-    try {
-      // NO headers = "simple request" = NO CORS preflight = faster!
-      // keepalive ensures request completes even if page navigates away
-      const response = await fetch(cancelUrl, {
-        method: 'POST',
-        keepalive: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    // Fire-and-forget: Send cancel request without waiting for response
+    // This ensures UI updates immediately while request completes in background
+    fetch(cancelUrl, {
+      method: 'POST',
+    }).then(response => {
+      if (response.ok) {
+        return response.json();
       }
+      throw new Error(`HTTP ${response.status}`);
+    }).then(data => {
+      console.log(`✅ [NO-AUTH] Cancel completed: cancelled ${data.cancelled_count} task(s)`);
+    }).catch(error => {
+      console.error(`❌ [NO-AUTH] Cancel failed:`, error.message);
+    });
 
-      const data = await response.json();
-      console.log(`✅ [NO-AUTH] Cancel request completed with status: ${response.status}`);
-      console.log(`📊 [NO-AUTH] Backend response:`, data);
-      console.log(`🛑 [NO-AUTH] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
-    } catch (error: any) {
-      console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
-      // Don't throw - we still want to clear the UI even if cancel fails
-    }
+    // Return immediately without waiting - UI updates instantly
+    console.log(`⚡ [NO-AUTH] Cancel request sent, not waiting for response`);
   };
 
   const handleFetch = async () => {
