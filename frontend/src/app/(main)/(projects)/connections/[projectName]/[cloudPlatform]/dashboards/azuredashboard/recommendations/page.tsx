@@ -49,6 +49,13 @@ const AzureRecommendationsPage: React.FC = () => {
     console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
     try {
+      // Create abort controller for 5-second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn(`⏱️  [NO-AUTH] Cancel request timeout after 5s, aborting...`);
+        controller.abort();
+      }, 5000);
+
       // Use raw fetch() WITHOUT Authorization header to avoid CORS preflight
       // This ensures the fastest possible response time
       const response = await fetch(cancelUrl, {
@@ -56,7 +63,11 @@ const AzureRecommendationsPage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
+        mode: 'cors',
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -68,7 +79,11 @@ const AzureRecommendationsPage: React.FC = () => {
       console.log(`📊 [NO-AUTH] Backend response:`, data);
       console.log(`🛑 [NO-AUTH] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
     } catch (error: any) {
-      console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
+      if (error.name === 'AbortError') {
+        console.error(`❌ [NO-AUTH] Cancel request timed out after 5s`);
+      } else {
+        console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
+      }
       // Don't throw - we still want to clear the UI even if cancel fails
     }
   };
