@@ -43,89 +43,28 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Backend cancellation - Enhanced logging for debugging
-  const cancelBackendTask = (projectIdToCancel: string) => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      console.error('⚠️  No access token found - cannot cancel backend task');
-      return;
-    }
-
+  // Backend cancellation using axiosInstance (already configured with CORS/auth)
+  const cancelBackendTask = async (projectIdToCancel: string) => {
     const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
-    console.log(`🔄 [DEBUG] Starting cancel request`);
-    console.log(`🔄 [DEBUG] URL: ${cancelUrl}`);
-    console.log(`🔄 [DEBUG] Token: ${token.substring(0, 30)}...`);
+    console.log(`🔄 [AXIOS] Starting cancel request: ${cancelUrl}`);
 
-    // Use XMLHttpRequest in ASYNC mode with comprehensive logging
-    const xhr = new XMLHttpRequest();
+    try {
+      // Use axiosInstance which already has auth and CORS configured
+      const response = await axiosInstance.post(cancelUrl);
 
-    // Log ALL state changes
-    xhr.onreadystatechange = function() {
-      console.log(`📡 [DEBUG] ReadyState: ${xhr.readyState}, Status: ${xhr.status}`);
-    };
-
-    xhr.onloadstart = function() {
-      console.log(`📤 [DEBUG] Request started (loadstart event)`);
-    };
-
-    xhr.onprogress = function() {
-      console.log(`⏳ [DEBUG] Request in progress...`);
-    };
-
-    xhr.onload = function() {
-      console.log(`✅ [DEBUG] Request completed (onload) - Status: ${xhr.status}`);
-
-      if (xhr.status === 200) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          console.log(`📊 [SUCCESS] Backend response:`, data);
-          console.log(`🛑 [SUCCESS] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
-        } catch (e) {
-          console.error('[ERROR] Failed to parse response:', e);
-          console.error('[ERROR] Response text:', xhr.responseText);
-        }
-      } else if (xhr.status === 401) {
-        console.error(`❌ [ERROR] Unauthorized (401) - token may be expired`);
+      console.log(`✅ [AXIOS] Cancel request completed with status: ${response.status}`);
+      console.log(`📊 [AXIOS] Backend response:`, response.data);
+      console.log(`🛑 [AXIOS] Cancelled ${response.data.cancelled_count} tasks for project ${projectIdToCancel}`);
+    } catch (error: any) {
+      if (error.response) {
+        console.error(`❌ [AXIOS] Failed with status: ${error.response.status}`);
+        console.error(`❌ [AXIOS] Response:`, error.response.data);
+      } else if (error.request) {
+        console.error(`⚠️  [AXIOS] No response received:`, error.request);
       } else {
-        console.error(`❌ [ERROR] Failed with status: ${xhr.status}`);
-        console.error(`❌ [ERROR] Response: ${xhr.responseText}`);
+        console.error(`⚠️  [AXIOS] Error:`, error.message);
       }
-
-      delete (window as any).__cancelXHR;
-    };
-
-    xhr.onerror = function() {
-      console.error(`⚠️  [ERROR] Network error occurred`);
-      console.error(`⚠️  [ERROR] ReadyState: ${xhr.readyState}, Status: ${xhr.status}`);
-      delete (window as any).__cancelXHR;
-    };
-
-    xhr.ontimeout = function() {
-      console.error(`⚠️  [ERROR] Request timeout after 10s`);
-      delete (window as any).__cancelXHR;
-    };
-
-    xhr.onabort = function() {
-      console.error(`⚠️  [ERROR] Request was aborted`);
-      delete (window as any).__cancelXHR;
-    };
-
-    console.log(`📤 [DEBUG] Opening XHR connection...`);
-    xhr.open('POST', cancelUrl, true); // true = asynchronous
-
-    console.log(`📤 [DEBUG] Setting headers...`);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.timeout = 10000; // 10 second timeout
-
-    // CRITICAL: Store in global BEFORE sending
-    (window as any).__cancelXHR = xhr;
-    console.log(`📦 [DEBUG] XHR stored in window.__cancelXHR`);
-
-    console.log(`📤 [DEBUG] Calling xhr.send()...`);
-    xhr.send();
-    console.log(`✅ [DEBUG] xhr.send() returned successfully`);
-    console.log(`✅ [DEBUG] XHR should now be in-flight`);
+    }
   };
 
   const handleFetch = async () => {
@@ -200,42 +139,36 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Increment generation + backend cancel with delayed UI update
+  // Reset: Increment generation + backend cancel with axios
   const handleReset = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // Send cancel to backend (async XHR stored in global)
+    // Send cancel to backend (axios handles it asynchronously)
     if (currentTaskIdRef.current || projectId) {
-      cancelBackendTask(projectId);
+      cancelBackendTask(projectId); // Fire and forget - axios handles it
       currentTaskIdRef.current = null;
     }
 
-    // CRITICAL: Delay UI clear by 50ms to let XHR fully initiate
-    // This prevents React state updates from aborting the XHR
-    console.log(`⏳ [DEBUG] Waiting 50ms before clearing UI to let XHR initiate...`);
-    setTimeout(() => {
-      console.log(`🧹 [DEBUG] Clearing UI now...`);
+    // Clear UI immediately - axios request continues in background
+    setFilters({
+      resourceType: resourceOptions[0]?.displayName || '',
+      resourceId: undefined,
+      resourceIdEnabled: false,
+      dateRangePreset: 'last_month',
+      startDate: undefined,
+      endDate: undefined,
+    });
 
-      setFilters({
-        resourceType: resourceOptions[0]?.displayName || '',
-        resourceId: undefined,
-        resourceIdEnabled: false,
-        dateRangePreset: 'last_month',
-        startDate: undefined,
-        endDate: undefined,
-      });
+    setRecommendations([]);
+    setCurrentIndex(0);
+    setError(null);
+    setIsLoading(false);
+    setIsTransitioning(false);
 
-      setRecommendations([]);
-      setCurrentIndex(0);
-      setError(null);
-      setIsLoading(false);
-      setIsTransitioning(false);
-
-      console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
-    }, 50); // 50ms delay - imperceptible to user, crucial for XHR
+    console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
   };
 
   // Navigation functions for carousel with smooth transitions
