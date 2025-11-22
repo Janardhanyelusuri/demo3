@@ -65,24 +65,7 @@ const AzureRecommendationsPage: React.FC = () => {
   };
 
   const handleFetch = async () => {
-    console.log('🚀 [TASK-CANCEL-v2.0] NEW CODE LOADED - Task cancellation active');
-
-    // TEST: Call cancel endpoint on page load to verify it's reachable from browser
-    console.log('🧪 TESTING cancel endpoint from browser...');
-    const testToken = localStorage.getItem("accessToken");
-    fetch(`${BACKEND}/llm/projects/${projectId}/cancel-tasks`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${testToken}`,
-        'Content-Type': 'application/json'
-      }
-    })
-      .then(r => {
-        console.log(`🧪 Response status: ${r.status}`);
-        return r.json();
-      })
-      .then(data => console.log('🧪 ✅ Cancel endpoint IS reachable from browser!', data))
-      .catch(err => console.error('🧪 ❌ Cancel endpoint NOT reachable:', err));
+    console.log('🚀 [TASK-CANCEL-v2.0] Starting new LLM analysis');
 
     // Clear the ignore flag - we want responses from this new request
     shouldIgnoreResponseRef.current = false;
