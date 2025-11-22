@@ -43,7 +43,7 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Backend cancellation using keepalive fetch (non-blocking, guaranteed delivery)
+  // Backend cancellation - Enhanced logging for debugging
   const cancelBackendTask = (projectIdToCancel: string) => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -52,38 +52,80 @@ const AzureRecommendationsPage: React.FC = () => {
     }
 
     const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
-    console.log(`🔄 [CRITICAL] Sending cancel request with keepalive: ${cancelUrl}`);
+    console.log(`🔄 [DEBUG] Starting cancel request`);
+    console.log(`🔄 [DEBUG] URL: ${cancelUrl}`);
+    console.log(`🔄 [DEBUG] Token: ${token.substring(0, 30)}...`);
 
-    // Use fetch with keepalive to guarantee delivery without blocking UI
-    // keepalive ensures the request completes even if the page/component is torn down
-    fetch(cancelUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      keepalive: true  // CRITICAL: Guarantees completion even during page unload
-    })
-    .then(async (response) => {
-      console.log(`✅ Cancel request completed with status: ${response.status}`);
+    // Use XMLHttpRequest in ASYNC mode with comprehensive logging
+    const xhr = new XMLHttpRequest();
 
-      if (response.status === 200) {
-        const data = await response.json();
-        console.log(`📊 Backend response:`, data);
-        console.log(`🛑 Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
-      } else if (response.status === 401) {
-        console.error(`❌ Cancel failed: Unauthorized (401) - token may be expired`);
+    // Log ALL state changes
+    xhr.onreadystatechange = function() {
+      console.log(`📡 [DEBUG] ReadyState: ${xhr.readyState}, Status: ${xhr.status}`);
+    };
+
+    xhr.onloadstart = function() {
+      console.log(`📤 [DEBUG] Request started (loadstart event)`);
+    };
+
+    xhr.onprogress = function() {
+      console.log(`⏳ [DEBUG] Request in progress...`);
+    };
+
+    xhr.onload = function() {
+      console.log(`✅ [DEBUG] Request completed (onload) - Status: ${xhr.status}`);
+
+      if (xhr.status === 200) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          console.log(`📊 [SUCCESS] Backend response:`, data);
+          console.log(`🛑 [SUCCESS] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
+        } catch (e) {
+          console.error('[ERROR] Failed to parse response:', e);
+          console.error('[ERROR] Response text:', xhr.responseText);
+        }
+      } else if (xhr.status === 401) {
+        console.error(`❌ [ERROR] Unauthorized (401) - token may be expired`);
       } else {
-        console.error(`❌ Cancel failed with status: ${response.status}`);
+        console.error(`❌ [ERROR] Failed with status: ${xhr.status}`);
+        console.error(`❌ [ERROR] Response: ${xhr.responseText}`);
       }
-    })
-    .catch((error) => {
-      console.error(`⚠️  Cancel request error:`, error.message);
-      console.error(`This is non-fatal - UI cleared, but backend may continue processing`);
-    });
 
-    // Return immediately - don't wait for the response
-    console.log(`🚀 Cancel request sent (non-blocking), continuing...`);
+      delete (window as any).__cancelXHR;
+    };
+
+    xhr.onerror = function() {
+      console.error(`⚠️  [ERROR] Network error occurred`);
+      console.error(`⚠️  [ERROR] ReadyState: ${xhr.readyState}, Status: ${xhr.status}`);
+      delete (window as any).__cancelXHR;
+    };
+
+    xhr.ontimeout = function() {
+      console.error(`⚠️  [ERROR] Request timeout after 10s`);
+      delete (window as any).__cancelXHR;
+    };
+
+    xhr.onabort = function() {
+      console.error(`⚠️  [ERROR] Request was aborted`);
+      delete (window as any).__cancelXHR;
+    };
+
+    console.log(`📤 [DEBUG] Opening XHR connection...`);
+    xhr.open('POST', cancelUrl, true); // true = asynchronous
+
+    console.log(`📤 [DEBUG] Setting headers...`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 10000; // 10 second timeout
+
+    // CRITICAL: Store in global BEFORE sending
+    (window as any).__cancelXHR = xhr;
+    console.log(`📦 [DEBUG] XHR stored in window.__cancelXHR`);
+
+    console.log(`📤 [DEBUG] Calling xhr.send()...`);
+    xhr.send();
+    console.log(`✅ [DEBUG] xhr.send() returned successfully`);
+    console.log(`✅ [DEBUG] XHR should now be in-flight`);
   };
 
   const handleFetch = async () => {
@@ -158,21 +200,20 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Increment generation + non-blocking backend cancel
+  // Reset: Increment generation + backend cancel (async XHR with global ref)
   const handleReset = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // Send cancel to backend (non-blocking with keepalive guarantee)
-    // The fetch completes in background even if UI re-renders
+    // Send cancel to backend (async XHR stored in global, guaranteed to complete)
     if (currentTaskIdRef.current || projectId) {
       cancelBackendTask(projectId);
       currentTaskIdRef.current = null;
     }
 
-    // Clear UI immediately (don't wait for cancel response)
+    // Clear UI immediately (async XHR continues in background)
     setFilters({
       resourceType: resourceOptions[0]?.displayName || '',
       resourceId: undefined,
