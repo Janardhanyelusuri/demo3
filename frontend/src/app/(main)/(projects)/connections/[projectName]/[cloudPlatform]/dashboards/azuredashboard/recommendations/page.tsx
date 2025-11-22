@@ -46,25 +46,37 @@ const AzureRecommendationsPage: React.FC = () => {
   // Backend cancellation using NEW non-auth endpoint for instant response
   const cancelBackendTask = async (projectIdToCancel: string) => {
     const cancelUrl = `${BACKEND}/cancel-tasks/${projectIdToCancel}`;
-    console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
+    console.log(`🔄 [NO-AUTH] Starting FAST cancel request to: ${cancelUrl}`);
+    console.log(`🔍 [DEBUG] BACKEND constant value: ${BACKEND}`);
 
-    // Fire-and-forget: Send cancel request without waiting for response
-    // This ensures UI updates immediately while request completes in background
-    fetch(cancelUrl, {
-      method: 'POST',
-    }).then(response => {
-      if (response.ok) {
-        return response.json();
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }).then(data => {
-      console.log(`✅ [NO-AUTH] Cancel completed: cancelled ${data.cancelled_count} task(s)`);
-    }).catch(error => {
-      console.error(`❌ [NO-AUTH] Cancel failed:`, error.message);
-    });
+    // Try multiple methods to ensure the request gets through
 
-    // Return immediately without waiting - UI updates instantly
-    console.log(`⚡ [NO-AUTH] Cancel request sent, not waiting for response`);
+    // Method 1: navigator.sendBeacon (most reliable for fire-and-forget)
+    if (typeof navigator.sendBeacon === 'function') {
+      const sent = navigator.sendBeacon(cancelUrl);
+      console.log(`📡 [NO-AUTH] sendBeacon result: ${sent}`);
+    }
+
+    // Method 2: fetch as backup (with detailed logging)
+    try {
+      console.log(`🔄 [DEBUG] About to call fetch()...`);
+      fetch(cancelUrl, {
+        method: 'POST',
+      }).then(response => {
+        console.log(`✅ [NO-AUTH] fetch() got response: ${response.status}`);
+        if (response.ok) {
+          return response.json();
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }).then(data => {
+        console.log(`✅ [NO-AUTH] Cancel completed: cancelled ${data.cancelled_count} task(s)`);
+      }).catch(error => {
+        console.error(`❌ [NO-AUTH] fetch() failed:`, error);
+      });
+      console.log(`⚡ [DEBUG] fetch() call initiated`);
+    } catch (error) {
+      console.error(`❌ [DEBUG] Exception calling fetch():`, error);
+    }
   };
 
   const handleFetch = async () => {
