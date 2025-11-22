@@ -186,44 +186,44 @@ const AzureRecommendationsPage: React.FC = () => {
     // Clear task_id immediately
     currentTaskIdRef.current = null;
 
-    // Send cancel request to backend IMMEDIATELY (no delay needed since we're not aborting)
+    // Send cancel request to backend and WAIT for it to complete before updating state
+    console.log('📡 Sending cancel request to backend...');
     if (taskIdToCancel) {
       // We have a specific task_id - cancel that task
       console.log(`🎯 Cancelling backend task: ${taskIdToCancel}`);
-      cancelBackendTask(taskIdToCancel);
+      await cancelBackendTask(taskIdToCancel);
     } else {
       // No task_id available (request was sent too recently)
       // Cancel all tasks for this project as a fallback
       console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
 
-      // Use fetch instead of axios to avoid any interceptor interference
       const token = localStorage.getItem("accessToken");
       console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
-      console.log(`📡 Sending POST to: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
+      console.log(`📡 Calling: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
 
-      fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        keepalive: true  // Ensure request completes even if page/component changes
-      })
-        .then(response => {
-          console.log(`📡 Cancel response status: ${response.status}`);
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          return response.json();
-        })
-        .then(data => {
-          console.log(`✅ Cancelled project tasks:`, data);
-        })
-        .catch(error => {
-          console.error('❌ Error cancelling project tasks:', error);
-          console.error('Error type:', error.name);
-          console.error('Error message:', error.message);
+      try {
+        const response = await fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          keepalive: true
         });
+
+        console.log(`📡 Cancel response status: ${response.status}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(`✅ Cancelled project tasks:`, data);
+      } catch (error: any) {
+        console.error('❌ Error cancelling project tasks:', error);
+        console.error('Error type:', error.name);
+        console.error('Error message:', error.message);
+      }
     }
 
     console.log('Resetting UI state...');
