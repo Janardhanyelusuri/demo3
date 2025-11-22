@@ -400,26 +400,42 @@ async def cancel_task(task_id: str):
         )
 
 
-@router.post("/projects/{project_id}/cancel-tasks")
+@router.post("/projects/{project_id}/cancel-tasks", status_code=200)
 async def cancel_project_tasks(project_id: str):
     """
     Cancel all running LLM analysis tasks for a specific project.
     This is useful when user aborts a request before receiving the task_id.
     """
-    print(f"🔔 CANCEL ALL TASKS REQUEST for project: {project_id}")
+    try:
+        print(f"🔔 CANCEL ALL TASKS REQUEST for project: {project_id}")
+        print(f"🔔 Endpoint is being hit!")
 
-    # List all active tasks for debugging
-    active_tasks = task_manager.list_active_tasks()
-    print(f"📋 Total active tasks: {len(active_tasks)}")
+        # List all active tasks for debugging
+        active_tasks = task_manager.list_active_tasks()
+        print(f"📋 Total active tasks: {len(active_tasks)}")
 
-    cancelled_count = task_manager.cancel_tasks_by_project(project_id)
+        cancelled_count = task_manager.cancel_tasks_by_project(project_id)
 
-    return {
-        "status": "success",
-        "message": f"Cancelled {cancelled_count} task(s) for project {project_id}",
-        "project_id": project_id,
-        "cancelled_count": cancelled_count
-    }
+        print(f"✅ Returning response with cancelled_count: {cancelled_count}")
+
+        return {
+            "status": "success",
+            "message": f"Cancelled {cancelled_count} task(s) for project {project_id}",
+            "project_id": project_id,
+            "cancelled_count": cancelled_count
+        }
+    except Exception as e:
+        print(f"❌ ERROR in cancel_project_tasks: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health")
+async def health_check():
+    """Simple health check to verify code is loaded."""
+    print("🏥 Health check endpoint hit!")
+    return {"status": "healthy", "message": "Backend code loaded successfully", "version": "v2.1"}
 
 
 @router.get("/tasks")
