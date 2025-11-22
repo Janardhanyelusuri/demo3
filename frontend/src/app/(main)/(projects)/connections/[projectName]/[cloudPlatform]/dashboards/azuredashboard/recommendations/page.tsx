@@ -139,20 +139,21 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Increment generation + backend cancel with axios
-  const handleReset = () => {
+  // Reset: Increment generation + AWAIT backend cancel before clearing UI
+  const handleReset = async () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // Send cancel to backend (axios handles it asynchronously)
+    // CRITICAL: AWAIT the cancel request to ensure it completes before state updates
     if (currentTaskIdRef.current || projectId) {
-      cancelBackendTask(projectId); // Fire and forget - axios handles it
+      await cancelBackendTask(projectId);  // Wait for it to complete!
       currentTaskIdRef.current = null;
+      console.log(`✅ [DEBUG] Cancel request completed, now clearing UI...`);
     }
 
-    // Clear UI immediately - axios request continues in background
+    // Clear UI AFTER cancel request completes
     setFilters({
       resourceType: resourceOptions[0]?.displayName || '',
       resourceId: undefined,
