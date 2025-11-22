@@ -148,15 +148,28 @@ const AzureRecommendationsPage: React.FC = () => {
       console.log('ℹ️  No active HTTP request to abort');
     }
 
-    // Cancel backend task if we have the task_id
+    // Cancel backend task
     if (currentTaskIdRef.current) {
+      // We have a specific task_id - cancel that task
       console.log(`🎯 Cancelling backend task: ${currentTaskIdRef.current}`);
       await cancelBackendTask(currentTaskIdRef.current);
       currentTaskIdRef.current = null;
     } else {
-      console.log('ℹ️  No task_id available - backend will complete in background');
+      // No task_id available (request was aborted too quickly)
+      // Cancel all tasks for this project as a fallback
+      console.log(`🎯 No task_id - cancelling all tasks for project ${projectId}`);
+      try {
+        const response = await axiosInstance.post(`${BACKEND}/llm/projects/${projectId}/cancel-tasks`);
+        console.log(`✅ Cancelled project tasks:`, response.data);
+      } catch (error: any) {
+        console.error('❌ Error cancelling project tasks:', error);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+      }
     }
-    // If no task_id, just let it finish in background - no harm done
 
     console.log('Resetting UI state...');
 

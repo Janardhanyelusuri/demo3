@@ -36,6 +36,26 @@ class TaskManager:
                 return True
             return False
 
+    def cancel_tasks_by_project(self, project_id: str) -> int:
+        """Cancel all tasks for a given project. Returns count of cancelled tasks."""
+        cancelled_count = 0
+        with self._lock:
+            for task_id, task in list(self._active_tasks.items()):
+                # Check if this task belongs to the project
+                if task.get('metadata', {}).get('project_id') == project_id:
+                    if task['status'] == 'running':
+                        self._cancelled_tasks.add(task_id)
+                        self._active_tasks[task_id]['status'] = 'cancelled'
+                        print(f"🛑 Cancelled task {task_id} for project {project_id}")
+                        cancelled_count += 1
+
+        if cancelled_count > 0:
+            print(f"✅ Cancelled {cancelled_count} task(s) for project {project_id}")
+        else:
+            print(f"ℹ️  No active tasks found for project {project_id}")
+
+        return cancelled_count
+
     def is_cancelled(self, task_id: str) -> bool:
         """Check if a task has been cancelled."""
         with self._lock:
