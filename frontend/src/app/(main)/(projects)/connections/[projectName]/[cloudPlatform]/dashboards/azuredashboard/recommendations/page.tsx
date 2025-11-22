@@ -200,36 +200,42 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Increment generation + backend cancel (async XHR with global ref)
+  // Reset: Increment generation + backend cancel with delayed UI update
   const handleReset = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // Send cancel to backend (async XHR stored in global, guaranteed to complete)
+    // Send cancel to backend (async XHR stored in global)
     if (currentTaskIdRef.current || projectId) {
       cancelBackendTask(projectId);
       currentTaskIdRef.current = null;
     }
 
-    // Clear UI immediately (async XHR continues in background)
-    setFilters({
-      resourceType: resourceOptions[0]?.displayName || '',
-      resourceId: undefined,
-      resourceIdEnabled: false,
-      dateRangePreset: 'last_month',
-      startDate: undefined,
-      endDate: undefined,
-    });
+    // CRITICAL: Delay UI clear by 50ms to let XHR fully initiate
+    // This prevents React state updates from aborting the XHR
+    console.log(`⏳ [DEBUG] Waiting 50ms before clearing UI to let XHR initiate...`);
+    setTimeout(() => {
+      console.log(`🧹 [DEBUG] Clearing UI now...`);
 
-    setRecommendations([]);
-    setCurrentIndex(0);
-    setError(null);
-    setIsLoading(false);
-    setIsTransitioning(false);
+      setFilters({
+        resourceType: resourceOptions[0]?.displayName || '',
+        resourceId: undefined,
+        resourceIdEnabled: false,
+        dateRangePreset: 'last_month',
+        startDate: undefined,
+        endDate: undefined,
+      });
 
-    console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
+      setRecommendations([]);
+      setCurrentIndex(0);
+      setError(null);
+      setIsLoading(false);
+      setIsTransitioning(false);
+
+      console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
+    }, 50); // 50ms delay - imperceptible to user, crucial for XHR
   };
 
   // Navigation functions for carousel with smooth transitions
