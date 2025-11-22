@@ -125,6 +125,12 @@ async def cancel_tasks_no_auth(project_id: str, response: Response):
         active_tasks = task_manager.list_active_tasks()
         print(f"📋 [NO-AUTH] Total active tasks: {len(active_tasks)}")
 
+        # DEBUG: Show what project_ids are in active tasks
+        for task in active_tasks:
+            task_pid = task.get('metadata', {}).get('project_id')
+            print(f"   🔍 Task {task['id'][:8]}... has project_id: {repr(task_pid)} (type: {type(task_pid).__name__})")
+        print(f"   🎯 Looking for project_id: {repr(project_id)} (type: {type(project_id).__name__})")
+
         cancelled_count = task_manager.cancel_tasks_by_project(project_id)
 
         print(f"✅ [NO-AUTH] Returning response with cancelled_count: {cancelled_count}")
