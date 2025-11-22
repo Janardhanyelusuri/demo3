@@ -25,12 +25,11 @@ const AzureRecommendationsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // AbortController ref to cancel ongoing requests
-  const abortControllerRef = useRef<AbortController | null>(null);
-  // Task ID ref to cancel backend processing
+  // Generation counter: increments with each new analysis or reset
+  // Only responses matching current generation are processed
+  const generationRef = useRef<number>(0);
+  // Store current task ID for optional backend cleanup
   const currentTaskIdRef = useRef<string | null>(null);
-  // Flag to ignore responses from cancelled requests
-  const shouldIgnoreResponseRef = useRef<boolean>(false);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -44,33 +43,38 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Helper function to cancel backend task
-  const cancelBackendTask = async (taskId: string) => {
-    try {
-      console.log(`🔄 Attempting to cancel backend task: ${taskId}`);
-      console.log(`📡 Calling: ${BACKEND}/llm/tasks/${taskId}/cancel`);
+  // Fire-and-forget backend cancellation (best effort, don't wait for it)
+  const cancelBackendTaskAsync = (projectIdToCancel: string) => {
+    const token = localStorage.getItem("accessToken");
+    const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
 
-      const response = await axiosInstance.post(`${BACKEND}/llm/tasks/${taskId}/cancel`);
+    console.log(`🔄 Sending cancel request to backend (fire-and-forget): ${cancelUrl}`);
 
-      console.log(`✅ Cancelled backend task: ${taskId}`, response.data);
-    } catch (error: any) {
-      console.error('❌ Error cancelling backend task:', error);
-      console.error('Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-    }
+    // Use fetch with no await - let it complete in background
+    fetch(cancelUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }).then(res => {
+      console.log(`✅ Cancel request completed with status: ${res.status}`);
+      return res.json();
+    }).then(data => {
+      console.log(`📊 Cancel response:`, data);
+    }).catch(err => {
+      console.error(`⚠️  Cancel request failed (non-critical):`, err.message);
+    });
   };
 
   const handleFetch = async () => {
-    console.log('🚀 [TASK-CANCEL-v2.0] Starting new LLM analysis');
+    // Increment generation - this invalidates all previous requests
+    generationRef.current += 1;
+    const thisGeneration = generationRef.current;
 
-    // Clear the ignore flag - we want responses from this new request
-    shouldIgnoreResponseRef.current = false;
+    console.log(`🚀 [RESET-v3.0] Starting analysis (generation ${thisGeneration})`);
 
-    // Validation ensures analysis only runs if a resource type and dates are selected
+    // Validation
     if (!filters.resourceType) {
         setError("Please select a Resource Type to analyze.");
         setRecommendations([]);
@@ -83,129 +87,72 @@ const AzureRecommendationsPage: React.FC = () => {
         return;
     }
 
-    // Cancel any ongoing request and backend task before starting a new one
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    // Cancel previous backend task (fire-and-forget, best effort)
     if (currentTaskIdRef.current) {
-      await cancelBackendTask(currentTaskIdRef.current);
+      cancelBackendTaskAsync(projectId);
       currentTaskIdRef.current = null;
     }
 
-    // Create a new AbortController for this request
-    abortControllerRef.current = new AbortController();
-
     setIsLoading(true);
     setError(null);
-    setCurrentIndex(0); // Reset to first recommendation
+    setCurrentIndex(0);
 
     try {
       const result = await fetchRecommendationsWithFilters(
         projectId,
         cloudPlatform,
         filters,
-        abortControllerRef.current.signal
+        undefined // No abort signal needed
       );
 
-      // Check if we should ignore this response (user clicked reset while request was in flight)
-      if (shouldIgnoreResponseRef.current) {
-        console.log('⚠️  Ignoring response from cancelled request');
+      // CRITICAL: Only process if this is still the current generation
+      if (generationRef.current !== thisGeneration) {
+        console.log(`⚠️  Ignoring response from old generation ${thisGeneration} (current: ${generationRef.current})`);
         return;
       }
 
-      // Store task_id immediately for potential cancellation
+      // Store task_id for cleanup
       if (result.taskId) {
         currentTaskIdRef.current = result.taskId;
-        console.log(`📋 Started task: ${result.taskId}`);
-        console.log(`✅ Task ID stored in currentTaskIdRef`);
-      } else {
-        console.warn('⚠️  No task_id received from backend');
+        console.log(`📋 Task started: ${result.taskId}`);
       }
 
       setRecommendations(result.recommendations);
+      console.log(`✅ Analysis complete (generation ${thisGeneration}): ${result.recommendations.length} recommendations`);
     } catch (err) {
-      // Robust error handling
+      // Only show errors for current generation
+      if (generationRef.current !== thisGeneration) {
+        console.log(`⚠️  Ignoring error from old generation ${thisGeneration}`);
+        return;
+      }
+
       if (err instanceof Error) {
-        // Don't show error message if request was cancelled
-        if (err.message !== 'Analysis cancelled') {
-          setError(err.message);
-        }
+        setError(err.message);
       } else {
         setError("An unknown error occurred while fetching recommendations.");
       }
     } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null;
-      // Only clear task_id if no longer needed
-      if (currentTaskIdRef.current) {
-        // Keep task_id for a moment in case of late cancellation
-        setTimeout(() => {
-          currentTaskIdRef.current = null;
-        }, 1000);
+      // Only clear loading if still current generation
+      if (generationRef.current === thisGeneration) {
+        setIsLoading(false);
       }
     }
   };
 
-  // Reset all filters and clear results
-  const handleReset = async () => {
-    console.log('🔄 [TASK-CANCEL-v2.0] Reset clicked - Cancelling tasks');
+  // Reset: Simple and clean - just increment generation and clear UI
+  const handleReset = () => {
+    // Increment generation - this makes all in-flight requests obsolete
+    generationRef.current += 1;
 
-    // Set flag to ignore any responses from the in-flight request
-    shouldIgnoreResponseRef.current = true;
-    console.log('🚫 Set ignore flag - will ignore any LLM responses');
+    console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // DON'T abort the HTTP request - this was blocking the cancel request
-    // Instead, just send the cancel request to backend and ignore the LLM response when it comes
-    // if (abortControllerRef.current) {
-    //   console.log('✋ Aborting HTTP request...');
-    //   abortControllerRef.current.abort();
-    //   abortControllerRef.current = null;
-    // }
-
-    // Store task/project IDs before clearing
-    const taskIdToCancel = currentTaskIdRef.current;
-    const projectIdForCancel = projectId;
-
-    // Clear task_id immediately
-    currentTaskIdRef.current = null;
-
-    // CRITICAL: Send cancel request SYNCHRONOUSLY using sendBeacon or keepalive fetch
-    // This ensures the request completes even if component re-renders
-    console.log('📡 Sending cancel request to backend...');
-
-    const token = localStorage.getItem("accessToken");
-    console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
-
-    // Try sendBeacon first (most reliable for fire-and-forget)
-    const cancelUrl = `${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`;
-    console.log(`📡 Calling: ${cancelUrl}`);
-
-    // Use XMLHttpRequest with async=false for guaranteed completion before state updates
-    // This is one of the few valid use cases for synchronous XHR
-    try {
-      console.log('🚀 Using synchronous XHR to guarantee delivery...');
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', cancelUrl, false); // false = synchronous
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.send();
-
-      console.log(`📡 Cancel response status: ${xhr.status}`);
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        console.log(`✅ Cancelled project tasks:`, data);
-      } else {
-        console.error(`❌ Cancel failed with status: ${xhr.status}`);
-      }
-    } catch (error: any) {
-      console.error('❌❌❌ Error cancelling project tasks:', error);
-      console.error('Error type:', error.name);
-      console.error('Error message:', error.message);
+    // Send cancel to backend (fire-and-forget, best effort to save tokens)
+    if (currentTaskIdRef.current || projectId) {
+      cancelBackendTaskAsync(projectId);
+      currentTaskIdRef.current = null;
     }
 
-    console.log('Resetting UI state...');
-
-    // Reset filters to initial state
+    // Immediately clear UI - no waiting, no complex coordination
     setFilters({
       resourceType: resourceOptions[0]?.displayName || '',
       resourceId: undefined,
@@ -215,14 +162,13 @@ const AzureRecommendationsPage: React.FC = () => {
       endDate: undefined,
     });
 
-    // Clear all state
     setRecommendations([]);
     setCurrentIndex(0);
     setError(null);
     setIsLoading(false);
     setIsTransitioning(false);
 
-    console.log('✅ Reset complete - UI cleared');
+    console.log(`✅ Reset complete - UI cleared, generation ${generationRef.current}`);
   };
 
   // Navigation functions for carousel with smooth transitions
