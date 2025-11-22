@@ -48,39 +48,35 @@ const AzureRecommendationsPage: React.FC = () => {
     const cancelUrl = `${BACKEND}/cancel-tasks/${projectIdToCancel}`;
     console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
-    try {
-      // Create abort controller for 5-second timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.warn(`⏱️  [NO-AUTH] Cancel request timeout after 5s, aborting...`);
-        controller.abort();
-      }, 5000);
-
-      // Use raw fetch() WITHOUT Authorization header to avoid CORS preflight
-      // This ensures the fastest possible response time
-      const response = await fetch(cancelUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        mode: 'cors',
-      });
-
-      clearTimeout(timeoutId);
-
+    // Use Promise.race to timeout without aborting the request
+    // This prevents NS_BINDING_ABORTED errors in Firefox
+    const fetchPromise = fetch(cancelUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      keepalive: true,  // Allow request to complete even if page navigates away
+    }).then(async (response) => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
       const data = await response.json();
-
       console.log(`✅ [NO-AUTH] Cancel request completed with status: ${response.status}`);
       console.log(`📊 [NO-AUTH] Backend response:`, data);
       console.log(`🛑 [NO-AUTH] Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
+      return data;
+    });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 3000)
+    );
+
+    try {
+      await Promise.race([fetchPromise, timeoutPromise]);
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.error(`❌ [NO-AUTH] Cancel request timed out after 5s`);
+      if (error.message === 'timeout') {
+        console.warn(`⏱️  [NO-AUTH] Cancel request taking longer than expected, continuing anyway...`);
+        // Don't wait - let the request complete in background via keepalive
       } else {
         console.error(`❌ [NO-AUTH] Cancel request failed:`, error);
       }
