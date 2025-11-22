@@ -99,7 +99,7 @@ def health_check():
 
 
 @app.post("/cancel-tasks/{project_id}")
-async def cancel_tasks_no_auth(project_id: str):
+async def cancel_tasks_no_auth(project_id: str, response: Response):
     """
     FAST cancel endpoint WITHOUT authentication for immediate task cancellation.
     This endpoint is intentionally unauthenticated to ensure instant response
@@ -111,6 +111,11 @@ async def cancel_tasks_no_auth(project_id: str):
     - Cannot corrupt data or cause security issues
     """
     from app.core.task_manager import task_manager
+
+    # Set explicit CORS headers for this endpoint
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
 
     try:
         print(f"🔔 [NO-AUTH] FAST CANCEL REQUEST for project: {project_id}")
@@ -140,6 +145,20 @@ async def cancel_tasks_no_auth(project_id: str):
             "project_id": project_id,
             "cancelled_count": 0
         }
+
+
+@app.options("/cancel-tasks/{project_id}")
+async def cancel_tasks_options(project_id: str):
+    """Handle OPTIONS preflight for cancel endpoint"""
+    print(f"🔄 [NO-AUTH] OPTIONS preflight received for project: {project_id}")
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )
 
 
 @app.on_event('startup')
