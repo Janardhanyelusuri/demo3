@@ -125,7 +125,6 @@ const AzureRecommendationsPage: React.FC = () => {
   // Reset all filters and clear results
   const handleReset = async () => {
     console.log('🔄 [TASK-CANCEL-v2.0] Reset clicked - Cancelling tasks');
-    console.log('Current task ID:', currentTaskIdRef.current);
 
     // Cancel any ongoing HTTP request
     if (abortControllerRef.current) {
@@ -134,31 +133,15 @@ const AzureRecommendationsPage: React.FC = () => {
       abortControllerRef.current = null;
     }
 
-    // Cancel any ongoing backend task (try both specific task and all active tasks)
+    // Cancel backend task if we have the task_id
     if (currentTaskIdRef.current) {
-      console.log(`Cancelling specific task: ${currentTaskIdRef.current}`);
+      console.log(`Cancelling backend task: ${currentTaskIdRef.current}`);
       await cancelBackendTask(currentTaskIdRef.current);
       currentTaskIdRef.current = null;
-    } else {
-      // If we don't have a task_id (aborted too quickly), cancel all active tasks
-      console.log('No task_id found, fetching all active tasks to cancel...');
-      try {
-        const tasksResponse = await axiosInstance.get(`${BACKEND}/llm/tasks`);
-        const tasksData = tasksResponse.data;
-        console.log(`✅ Fetched tasks response:`, tasksData);
-        console.log(`Found ${tasksData.count} active tasks, cancelling all...`);
-
-        for (const task of tasksData.tasks) {
-          console.log(`Cancelling task: ${task.id}`);
-          await cancelBackendTask(task.id);
-        }
-        console.log('✅ All tasks cancelled');
-      } catch (error) {
-        console.error('❌ Error cancelling all tasks:', error);
-      }
     }
+    // If no task_id, just let it finish in background - no harm done
 
-    console.log('Resetting filters and clearing state...');
+    console.log('Resetting UI state...');
 
     // Reset filters to initial state
     setFilters({
@@ -177,7 +160,7 @@ const AzureRecommendationsPage: React.FC = () => {
     setIsLoading(false);
     setIsTransitioning(false);
 
-    console.log('✅ Reset complete');
+    console.log('✅ Reset complete - UI cleared');
   };
 
   // Navigation functions for carousel with smooth transitions
