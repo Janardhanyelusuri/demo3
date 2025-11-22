@@ -165,17 +165,33 @@ const AzureRecommendationsPage: React.FC = () => {
         // No task_id available (request was aborted too quickly)
         // Cancel all tasks for this project as a fallback
         console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
-        axiosInstance.post(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`)
+
+        // Use fetch instead of axios to avoid any interceptor interference
+        const token = localStorage.getItem("accessToken");
+        console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
+        console.log(`📡 Sending POST to: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
+
+        fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
           .then(response => {
-            console.log(`✅ Cancelled project tasks:`, response.data);
+            console.log(`📡 Cancel response status: ${response.status}`);
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            console.log(`✅ Cancelled project tasks:`, data);
           })
           .catch(error => {
             console.error('❌ Error cancelling project tasks:', error);
-            console.error('Error details:', {
-              message: error.message,
-              status: error.response?.status,
-              data: error.response?.data
-            });
+            console.error('Error type:', error.name);
+            console.error('Error message:', error.message);
           });
       }
     }, 100); // 100ms delay to let abort complete
