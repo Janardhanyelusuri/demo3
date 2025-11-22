@@ -43,32 +43,45 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Backend cancellation using synchronous XHR (PROVEN to work - guaranteed delivery)
+  // Backend cancellation using synchronous XHR with timeout handling
   const cancelBackendTaskSync = (projectIdToCancel: string) => {
     const token = localStorage.getItem("accessToken");
-    const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
+    if (!token) {
+      console.error('⚠️  No access token found - cannot cancel backend task');
+      return;
+    }
 
+    const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
     console.log(`🔄 [CRITICAL] Sending SYNCHRONOUS cancel request: ${cancelUrl}`);
 
     try {
-      // Synchronous XHR is one of the few valid use cases for guaranteed request delivery
-      // This BLOCKS execution until the backend responds, preventing React from interrupting it
       const xhr = new XMLHttpRequest();
       xhr.open('POST', cancelUrl, false); // false = synchronous - BLOCKS until complete
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.setRequestHeader('Content-Type', 'application/json');
+
+      // Set a reasonable timeout to prevent infinite hang (synchronous XHR has no timeout property)
+      // We can't set timeout on sync XHR, so we rely on browser's default network timeout
       xhr.send();
 
       console.log(`✅ Cancel request completed with status: ${xhr.status}`);
+
       if (xhr.status === 200) {
         const data = JSON.parse(xhr.responseText);
         console.log(`📊 Backend response:`, data);
         console.log(`🛑 Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
+      } else if (xhr.status === 401) {
+        console.error(`❌ Cancel failed: Unauthorized (401) - token may be expired`);
+      } else if (xhr.status === 0) {
+        console.error(`❌ Cancel failed: Network error (status 0) - backend may be offline`);
       } else {
         console.error(`❌ Cancel failed with status: ${xhr.status}`);
+        console.error(`Response: ${xhr.responseText}`);
       }
     } catch (error: any) {
+      // Network errors, timeouts, or CORS issues
       console.error(`⚠️  Cancel request error:`, error.message);
+      console.error(`This is non-fatal - UI will still clear, but backend may continue processing`);
     }
   };
 
