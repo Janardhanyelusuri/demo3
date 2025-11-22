@@ -148,30 +148,37 @@ const AzureRecommendationsPage: React.FC = () => {
       console.log('ℹ️  No active HTTP request to abort');
     }
 
-    // Cancel backend task (fire and forget - don't wait for response)
-    if (currentTaskIdRef.current) {
-      // We have a specific task_id - cancel that task
-      console.log(`🎯 Cancelling backend task: ${currentTaskIdRef.current}`);
-      cancelBackendTask(currentTaskIdRef.current); // No await - fire and forget
-      currentTaskIdRef.current = null;
-    } else {
-      // No task_id available (request was aborted too quickly)
-      // Cancel all tasks for this project as a fallback
-      console.log(`🎯 No task_id - cancelling all tasks for project ${projectId}`);
-      // Fire and forget - don't wait for response so UI resets immediately
-      axiosInstance.post(`${BACKEND}/llm/projects/${projectId}/cancel-tasks`)
-        .then(response => {
-          console.log(`✅ Cancelled project tasks:`, response.data);
-        })
-        .catch(error => {
-          console.error('❌ Error cancelling project tasks:', error);
-          console.error('Error details:', {
-            message: error.message,
-            status: error.response?.status,
-            data: error.response?.data
+    // Cancel backend task (with slight delay to ensure abort completes)
+    const taskIdToCancel = currentTaskIdRef.current;
+    const projectIdForCancel = projectId;
+
+    // Clear task_id immediately
+    currentTaskIdRef.current = null;
+
+    // Send cancel request after a brief delay to avoid race conditions
+    setTimeout(() => {
+      if (taskIdToCancel) {
+        // We have a specific task_id - cancel that task
+        console.log(`🎯 Cancelling backend task: ${taskIdToCancel}`);
+        cancelBackendTask(taskIdToCancel);
+      } else {
+        // No task_id available (request was aborted too quickly)
+        // Cancel all tasks for this project as a fallback
+        console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
+        axiosInstance.post(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`)
+          .then(response => {
+            console.log(`✅ Cancelled project tasks:`, response.data);
+          })
+          .catch(error => {
+            console.error('❌ Error cancelling project tasks:', error);
+            console.error('Error details:', {
+              message: error.message,
+              status: error.response?.status,
+              data: error.response?.data
+            });
           });
-        });
-    }
+      }
+    }, 100); // 100ms delay to let abort complete
 
     console.log('Resetting UI state...');
 
