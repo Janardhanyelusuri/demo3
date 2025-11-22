@@ -29,6 +29,8 @@ const AzureRecommendationsPage: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   // Task ID ref to cancel backend processing
   const currentTaskIdRef = useRef<string | null>(null);
+  // Flag to ignore responses from cancelled requests
+  const shouldIgnoreResponseRef = useRef<boolean>(false);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -64,6 +66,9 @@ const AzureRecommendationsPage: React.FC = () => {
 
   const handleFetch = async () => {
     console.log('🚀 [TASK-CANCEL-v2.0] NEW CODE LOADED - Task cancellation active');
+
+    // Clear the ignore flag - we want responses from this new request
+    shouldIgnoreResponseRef.current = false;
 
     // Validation ensures analysis only runs if a resource type and dates are selected
     if (!filters.resourceType) {
@@ -102,6 +107,12 @@ const AzureRecommendationsPage: React.FC = () => {
         abortControllerRef.current.signal
       );
 
+      // Check if we should ignore this response (user clicked reset while request was in flight)
+      if (shouldIgnoreResponseRef.current) {
+        console.log('⚠️  Ignoring response from cancelled request');
+        return;
+      }
+
       // Store task_id immediately for potential cancellation
       if (result.taskId) {
         currentTaskIdRef.current = result.taskId;
@@ -138,6 +149,10 @@ const AzureRecommendationsPage: React.FC = () => {
   // Reset all filters and clear results
   const handleReset = async () => {
     console.log('🔄 [TASK-CANCEL-v2.0] Reset clicked - Cancelling tasks');
+
+    // Set flag to ignore any responses from the in-flight request
+    shouldIgnoreResponseRef.current = true;
+    console.log('🚫 Set ignore flag - will ignore any LLM responses');
 
     // DON'T abort the HTTP request - this was blocking the cancel request
     // Instead, just send the cancel request to backend and ignore the LLM response when it comes
