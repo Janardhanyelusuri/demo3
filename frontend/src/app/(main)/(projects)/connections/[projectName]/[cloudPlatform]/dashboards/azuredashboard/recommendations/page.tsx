@@ -29,6 +29,8 @@ const AzureRecommendationsPage: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   // Task ID ref to cancel backend processing
   const currentTaskIdRef = useRef<string | null>(null);
+  // Flag to ignore responses from cancelled requests
+  const shouldIgnoreResponseRef = useRef<boolean>(false);
 
   const resourceOptions = AZURE_RESOURCES;
 
@@ -64,6 +66,26 @@ const AzureRecommendationsPage: React.FC = () => {
 
   const handleFetch = async () => {
     console.log('🚀 [TASK-CANCEL-v2.0] NEW CODE LOADED - Task cancellation active');
+
+    // TEST: Call cancel endpoint on page load to verify it's reachable from browser
+    console.log('🧪 TESTING cancel endpoint from browser...');
+    const testToken = localStorage.getItem("accessToken");
+    fetch(`${BACKEND}/llm/projects/${projectId}/cancel-tasks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${testToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(r => {
+        console.log(`🧪 Response status: ${r.status}`);
+        return r.json();
+      })
+      .then(data => console.log('🧪 ✅ Cancel endpoint IS reachable from browser!', data))
+      .catch(err => console.error('🧪 ❌ Cancel endpoint NOT reachable:', err));
+
+    // Clear the ignore flag - we want responses from this new request
+    shouldIgnoreResponseRef.current = false;
 
     // Validation ensures analysis only runs if a resource type and dates are selected
     if (!filters.resourceType) {
@@ -102,6 +124,12 @@ const AzureRecommendationsPage: React.FC = () => {
         abortControllerRef.current.signal
       );
 
+      // Check if we should ignore this response (user clicked reset while request was in flight)
+      if (shouldIgnoreResponseRef.current) {
+        console.log('⚠️  Ignoring response from cancelled request');
+        return;
+      }
+
       // Store task_id immediately for potential cancellation
       if (result.taskId) {
         currentTaskIdRef.current = result.taskId;
@@ -139,62 +167,64 @@ const AzureRecommendationsPage: React.FC = () => {
   const handleReset = async () => {
     console.log('🔄 [TASK-CANCEL-v2.0] Reset clicked - Cancelling tasks');
 
-    // Cancel any ongoing HTTP request
-    if (abortControllerRef.current) {
-      console.log('✋ Aborting HTTP request...');
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    } else {
-      console.log('ℹ️  No active HTTP request to abort');
-    }
+    // Set flag to ignore any responses from the in-flight request
+    shouldIgnoreResponseRef.current = true;
+    console.log('🚫 Set ignore flag - will ignore any LLM responses');
 
-    // Cancel backend task (with slight delay to ensure abort completes)
+    // DON'T abort the HTTP request - this was blocking the cancel request
+    // Instead, just send the cancel request to backend and ignore the LLM response when it comes
+    // if (abortControllerRef.current) {
+    //   console.log('✋ Aborting HTTP request...');
+    //   abortControllerRef.current.abort();
+    //   abortControllerRef.current = null;
+    // }
+
+    // Store task/project IDs before clearing
     const taskIdToCancel = currentTaskIdRef.current;
     const projectIdForCancel = projectId;
 
     // Clear task_id immediately
     currentTaskIdRef.current = null;
 
-    // Send cancel request after a brief delay to avoid race conditions
-    setTimeout(() => {
-      if (taskIdToCancel) {
-        // We have a specific task_id - cancel that task
-        console.log(`🎯 Cancelling backend task: ${taskIdToCancel}`);
-        cancelBackendTask(taskIdToCancel);
-      } else {
-        // No task_id available (request was aborted too quickly)
-        // Cancel all tasks for this project as a fallback
-        console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
+    // Send cancel request to backend IMMEDIATELY (no delay needed since we're not aborting)
+    if (taskIdToCancel) {
+      // We have a specific task_id - cancel that task
+      console.log(`🎯 Cancelling backend task: ${taskIdToCancel}`);
+      cancelBackendTask(taskIdToCancel);
+    } else {
+      // No task_id available (request was sent too recently)
+      // Cancel all tasks for this project as a fallback
+      console.log(`🎯 No task_id - cancelling all tasks for project ${projectIdForCancel}`);
 
-        // Use fetch instead of axios to avoid any interceptor interference
-        const token = localStorage.getItem("accessToken");
-        console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
-        console.log(`📡 Sending POST to: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
+      // Use fetch instead of axios to avoid any interceptor interference
+      const token = localStorage.getItem("accessToken");
+      console.log(`🔑 Using token: ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
+      console.log(`📡 Sending POST to: ${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`);
 
-        fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+      fetch(`${BACKEND}/llm/projects/${projectIdForCancel}/cancel-tasks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        keepalive: true  // Ensure request completes even if page/component changes
+      })
+        .then(response => {
+          console.log(`📡 Cancel response status: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
+          return response.json();
         })
-          .then(response => {
-            console.log(`📡 Cancel response status: ${response.status}`);
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-            console.log(`✅ Cancelled project tasks:`, data);
-          })
-          .catch(error => {
-            console.error('❌ Error cancelling project tasks:', error);
-            console.error('Error type:', error.name);
-            console.error('Error message:', error.message);
-          });
-      }
-    }, 100); // 100ms delay to let abort complete
+        .then(data => {
+          console.log(`✅ Cancelled project tasks:`, data);
+        })
+        .catch(error => {
+          console.error('❌ Error cancelling project tasks:', error);
+          console.error('Error type:', error.name);
+          console.error('Error message:', error.message);
+        });
+    }
 
     console.log('Resetting UI state...');
 
