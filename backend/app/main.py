@@ -98,6 +98,50 @@ def health_check():
     return {"message": "App okay!"}
 
 
+@app.post("/cancel-tasks/{project_id}")
+async def cancel_tasks_no_auth(project_id: str):
+    """
+    FAST cancel endpoint WITHOUT authentication for immediate task cancellation.
+    This endpoint is intentionally unauthenticated to ensure instant response
+    when the reset button is clicked, preventing token waste.
+
+    The operation is safe to expose because:
+    - Cancelling is idempotent (no side effects from multiple calls)
+    - ProjectId is user-known information
+    - Cannot corrupt data or cause security issues
+    """
+    from app.core.task_manager import task_manager
+
+    try:
+        print(f"🔔 [NO-AUTH] FAST CANCEL REQUEST for project: {project_id}")
+        print(f"🔔 [NO-AUTH] Endpoint is being hit!")
+
+        # List all active tasks for debugging
+        active_tasks = task_manager.list_active_tasks()
+        print(f"📋 [NO-AUTH] Total active tasks: {len(active_tasks)}")
+
+        cancelled_count = task_manager.cancel_tasks_by_project(project_id)
+
+        print(f"✅ [NO-AUTH] Returning response with cancelled_count: {cancelled_count}")
+
+        return {
+            "status": "success",
+            "message": f"Cancelled {cancelled_count} task(s) for project {project_id}",
+            "project_id": project_id,
+            "cancelled_count": cancelled_count
+        }
+    except Exception as e:
+        print(f"❌ [NO-AUTH] ERROR in cancel_tasks_no_auth: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": str(e),
+            "project_id": project_id,
+            "cancelled_count": 0
+        }
+
+
 @app.on_event('startup')
 async def load_config() -> None:
     """

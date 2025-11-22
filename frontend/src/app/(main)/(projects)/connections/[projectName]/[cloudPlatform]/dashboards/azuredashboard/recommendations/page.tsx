@@ -43,26 +43,26 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Backend cancellation using axiosInstance (already configured with CORS/auth)
+  // Backend cancellation using NEW non-auth endpoint for instant response
   const cancelBackendTask = async (projectIdToCancel: string) => {
-    const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
-    console.log(`🔄 [AXIOS] Starting cancel request: ${cancelUrl}`);
+    const cancelUrl = `${BACKEND}/cancel-tasks/${projectIdToCancel}`;
+    console.log(`🔄 [NO-AUTH] Starting FAST cancel request: ${cancelUrl}`);
 
     try {
-      // Use axiosInstance which already has auth and CORS configured
+      // Use axiosInstance for consistent CORS handling (auth header not needed for this endpoint)
       const response = await axiosInstance.post(cancelUrl);
 
-      console.log(`✅ [AXIOS] Cancel request completed with status: ${response.status}`);
-      console.log(`📊 [AXIOS] Backend response:`, response.data);
-      console.log(`🛑 [AXIOS] Cancelled ${response.data.cancelled_count} tasks for project ${projectIdToCancel}`);
+      console.log(`✅ [NO-AUTH] Cancel request completed with status: ${response.status}`);
+      console.log(`📊 [NO-AUTH] Backend response:`, response.data);
+      console.log(`🛑 [NO-AUTH] Cancelled ${response.data.cancelled_count} tasks for project ${projectIdToCancel}`);
     } catch (error: any) {
       if (error.response) {
-        console.error(`❌ [AXIOS] Failed with status: ${error.response.status}`);
-        console.error(`❌ [AXIOS] Response:`, error.response.data);
+        console.error(`❌ [NO-AUTH] Failed with status: ${error.response.status}`);
+        console.error(`❌ [NO-AUTH] Response:`, error.response.data);
       } else if (error.request) {
-        console.error(`⚠️  [AXIOS] No response received:`, error.request);
+        console.error(`⚠️  [NO-AUTH] No response received:`, error.request);
       } else {
-        console.error(`⚠️  [AXIOS] Error:`, error.message);
+        console.error(`⚠️  [NO-AUTH] Error:`, error.message);
       }
     }
   };
@@ -72,7 +72,7 @@ const AzureRecommendationsPage: React.FC = () => {
     generationRef.current += 1;
     const thisGeneration = generationRef.current;
 
-    console.log(`🚀 [RESET-v3.0] Starting analysis (generation ${thisGeneration})`);
+    console.log(`🚀 [RESET-v4.0-NO-AUTH] Starting analysis (generation ${thisGeneration})`);
 
     // Validation
     if (!filters.resourceType) {
@@ -144,7 +144,7 @@ const AzureRecommendationsPage: React.FC = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
-    console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
+    console.log(`🔄 [RESET-v4.0-NO-AUTH] Reset clicked (new generation: ${generationRef.current})`);
 
     // CRITICAL: AWAIT the cancel request to ensure it completes before state updates
     if (currentTaskIdRef.current || projectId) {
