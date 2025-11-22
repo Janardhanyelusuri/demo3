@@ -580,9 +580,14 @@ def run_llm_vm_all_resources(conn, schema_name, start_date=None, end_date=None, 
     # Process each row (resource) individually through LLM
     for idx, row in df.iterrows():
         # Check if task has been cancelled
-        if task_id and task_manager.is_cancelled(task_id):
-            print(f"🛑 Task {task_id} was cancelled. Stopping VM analysis. Processed {len(recommendations)}/{total_resources}")
-            break
+        if task_id:
+            is_cancelled = task_manager.is_cancelled(task_id)
+            if is_cancelled:
+                print(f"🛑 Task {task_id} was cancelled. Stopping VM analysis. Processed {len(recommendations)}/{total_resources}")
+                break
+            # Debug: Confirm task is still active
+            if idx == 0 or idx % 10 == 0:  # Log every 10th iteration
+                print(f"  🔍 Task {task_id[:8]}... still running, not cancelled (iteration {idx + 1})")
 
         resource_id = row.get('resource_id', 'Unknown')
         print(f"  [{idx + 1}/{total_resources}] Processing VM: {resource_id}")
@@ -650,9 +655,14 @@ def run_llm_storage_all_resources(conn, schema_name, start_date=None, end_date=N
     # Process each row (resource) individually through LLM
     for idx, row in df.iterrows():
         # Check if task has been cancelled
-        if task_id and task_manager.is_cancelled(task_id):
-            print(f"🛑 Task {task_id} was cancelled. Stopping Storage analysis. Processed {len(recommendations)}/{total_resources}")
-            break
+        if task_id:
+            is_cancelled = task_manager.is_cancelled(task_id)
+            if is_cancelled:
+                print(f"🛑 Task {task_id} was cancelled. Stopping Storage analysis. Processed {len(recommendations)}/{total_resources}")
+                break
+            # Debug: Confirm task is still active
+            if idx == 0 or idx % 10 == 0:  # Log every 10th iteration
+                print(f"  🔍 Task {task_id[:8]}... still running, not cancelled (iteration {idx + 1})")
 
         resource_id = row.get('resource_id', 'Unknown')
         print(f"  [{idx + 1}/{total_resources}] Processing Storage Account: {resource_id}")
