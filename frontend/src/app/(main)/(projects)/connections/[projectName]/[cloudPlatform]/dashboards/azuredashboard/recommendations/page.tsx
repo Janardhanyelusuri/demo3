@@ -43,8 +43,8 @@ const AzureRecommendationsPage: React.FC = () => {
     endDate: undefined,
   });
 
-  // Backend cancellation using synchronous XHR with timeout handling
-  const cancelBackendTaskSync = (projectIdToCancel: string) => {
+  // Backend cancellation using keepalive fetch (non-blocking, guaranteed delivery)
+  const cancelBackendTask = (projectIdToCancel: string) => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
       console.error('⚠️  No access token found - cannot cancel backend task');
@@ -52,37 +52,38 @@ const AzureRecommendationsPage: React.FC = () => {
     }
 
     const cancelUrl = `${BACKEND}/llm/projects/${projectIdToCancel}/cancel-tasks`;
-    console.log(`🔄 [CRITICAL] Sending SYNCHRONOUS cancel request: ${cancelUrl}`);
+    console.log(`🔄 [CRITICAL] Sending cancel request with keepalive: ${cancelUrl}`);
 
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', cancelUrl, false); // false = synchronous - BLOCKS until complete
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', 'application/json');
+    // Use fetch with keepalive to guarantee delivery without blocking UI
+    // keepalive ensures the request completes even if the page/component is torn down
+    fetch(cancelUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      keepalive: true  // CRITICAL: Guarantees completion even during page unload
+    })
+    .then(async (response) => {
+      console.log(`✅ Cancel request completed with status: ${response.status}`);
 
-      // Set a reasonable timeout to prevent infinite hang (synchronous XHR has no timeout property)
-      // We can't set timeout on sync XHR, so we rely on browser's default network timeout
-      xhr.send();
-
-      console.log(`✅ Cancel request completed with status: ${xhr.status}`);
-
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
+      if (response.status === 200) {
+        const data = await response.json();
         console.log(`📊 Backend response:`, data);
         console.log(`🛑 Cancelled ${data.cancelled_count} tasks for project ${projectIdToCancel}`);
-      } else if (xhr.status === 401) {
+      } else if (response.status === 401) {
         console.error(`❌ Cancel failed: Unauthorized (401) - token may be expired`);
-      } else if (xhr.status === 0) {
-        console.error(`❌ Cancel failed: Network error (status 0) - backend may be offline`);
       } else {
-        console.error(`❌ Cancel failed with status: ${xhr.status}`);
-        console.error(`Response: ${xhr.responseText}`);
+        console.error(`❌ Cancel failed with status: ${response.status}`);
       }
-    } catch (error: any) {
-      // Network errors, timeouts, or CORS issues
+    })
+    .catch((error) => {
       console.error(`⚠️  Cancel request error:`, error.message);
-      console.error(`This is non-fatal - UI will still clear, but backend may continue processing`);
-    }
+      console.error(`This is non-fatal - UI cleared, but backend may continue processing`);
+    });
+
+    // Return immediately - don't wait for the response
+    console.log(`🚀 Cancel request sent (non-blocking), continuing...`);
   };
 
   const handleFetch = async () => {
@@ -105,9 +106,9 @@ const AzureRecommendationsPage: React.FC = () => {
         return;
     }
 
-    // Cancel previous backend task (synchronous - guaranteed delivery)
+    // Cancel previous backend task (non-blocking with keepalive)
     if (currentTaskIdRef.current) {
-      cancelBackendTaskSync(projectId);
+      cancelBackendTask(projectId);
       currentTaskIdRef.current = null;
     }
 
@@ -157,21 +158,21 @@ const AzureRecommendationsPage: React.FC = () => {
     }
   };
 
-  // Reset: Increment generation + synchronous backend cancel
+  // Reset: Increment generation + non-blocking backend cancel
   const handleReset = () => {
     // Increment generation - this makes all in-flight requests obsolete
     generationRef.current += 1;
 
     console.log(`🔄 [RESET-v3.0] Reset clicked (new generation: ${generationRef.current})`);
 
-    // CRITICAL: Send cancel to backend SYNCHRONOUSLY before clearing UI
-    // This guarantees the backend receives and processes the cancel request
+    // Send cancel to backend (non-blocking with keepalive guarantee)
+    // The fetch completes in background even if UI re-renders
     if (currentTaskIdRef.current || projectId) {
-      cancelBackendTaskSync(projectId);
+      cancelBackendTask(projectId);
       currentTaskIdRef.current = null;
     }
 
-    // Clear UI after cancel completes
+    // Clear UI immediately (don't wait for cancel response)
     setFilters({
       resourceType: resourceOptions[0]?.displayName || '',
       resourceId: undefined,
